@@ -3,6 +3,13 @@
 pdftotext emits one line per paragraph, page numbers as `-N-` lines, and a form
 feed at the start of the line that opens each new page. Paragraphs interrupted
 by a page break arrive as two lines and must be rejoined.
+
+Known limitation, accepted: the hyphen rule joins any line ending in `-` with the
+next one and deletes the hyphen. It cannot tell a line-wrap hyphen from a German
+compound that happens to wrap at its own hyphen, so a compound split at exactly
+that point is glued into one word. Distinguishing the two needs a dictionary,
+which is out of scope for a regex normalizer. hyphen_joins counts every such join
+so `parfum check` can surface the number for a human to spot-check.
 """
 
 from __future__ import annotations
@@ -42,6 +49,11 @@ def _is_continuation(previous: str, current: str) -> bool:
 
 
 def normalize(raw: str) -> Normalized:
+    """Convert raw pdftotext output into clean paragraphs with page metadata.
+
+    Removes page numbers, strips form feeds, rejoins paragraphs split across
+    page breaks, and tracks structural metrics (page offsets, join counts).
+    """
     result = Normalized()
     lines: list[str] = []
     page_start_lines: list[int] = [0]
@@ -53,8 +65,9 @@ def normalize(raw: str) -> Normalized:
             page_start_lines.append(len(lines))
 
         stripped = line.strip()
-        if not stripped or PAGE_NUMBER.fullmatch(stripped):
-            if PAGE_NUMBER.fullmatch(stripped):
+        is_page_number = PAGE_NUMBER.fullmatch(stripped)
+        if not stripped or is_page_number:
+            if is_page_number:
                 result.page_lines_removed += 1
             continue
 
@@ -82,11 +95,18 @@ def normalize(raw: str) -> Normalized:
     return result
 
 
-def run_pdftotext(pdf: Path, destination: Path) -> str:
-    """Extract the PDF's text layer. Raises if pdftotext is missing or fails."""
+def run_pdftotext(pdf: Path, destination: Path) -> int:
+    """Extract the PDF's text layer to `destination`.
+
+    Returns the number of characters written, never the text itself. This is
+    the only function that touches the copyrighted source, so a diagnostic
+    return value makes the disk-to-disk rule structural instead of something
+    every caller has to remember. Read `destination` at the point of use.
+    Raises if pdftotext is missing or fails.
+    """
     subprocess.run(
         ["pdftotext", "-enc", "UTF-8", str(pdf), str(destination)],
         check=True,
         capture_output=True,
     )
-    return destination.read_text(encoding="utf-8")
+    return len(destination.read_text(encoding="utf-8"))

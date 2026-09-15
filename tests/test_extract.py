@@ -1,6 +1,7 @@
 from pathlib import Path
+from unittest.mock import patch
 
-from parfum.extract import normalize
+from parfum.extract import normalize, run_pdftotext
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mini_book.txt"
 
@@ -46,3 +47,31 @@ def test_structural_markers_are_never_merged():
     swallows the chapter number that follows it."""
     lines = normalize("ERSTER TEIL\n1\nEin Satz.\nZWEITER TEIL\n2\nNoch einer.").text.split("\n")
     assert lines == ["ERSTER TEIL", "1", "Ein Satz.", "ZWEITER TEIL", "2", "Noch einer."]
+
+
+def test_marker_is_not_swallowed_by_an_unterminated_line():
+    """When the previous line lacks terminal punctuation, the STRUCTURAL guard
+    on the current line still prevents merging."""
+    text = normalize("Der Satz bricht ab\n5\nNächster Satz.").text
+    assert text.split("\n") == ["Der Satz bricht ab", "5", "Nächster Satz."]
+
+
+def test_run_pdftotext_returns_character_count_not_text(tmp_path):
+    """Verify run_pdftotext returns int (char count), not the extracted text."""
+    pdf_path = tmp_path / "fake.pdf"
+    dest_path = tmp_path / "output.txt"
+
+    known_content = "Hello, World!"
+
+    with patch("parfum.extract.subprocess.run") as mock_run:
+        # Write known content to destination after the fake subprocess runs
+        mock_run.side_effect = lambda *args, **kwargs: dest_path.write_text(
+            known_content, encoding="utf-8"
+        )
+
+        result = run_pdftotext(pdf_path, dest_path)
+
+    # Verify the return value is an int, not a string
+    assert isinstance(result, int)
+    assert result == len(known_content)
+    assert not isinstance(result, str)
