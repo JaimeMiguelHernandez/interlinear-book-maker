@@ -320,7 +320,8 @@ git commit -m "test: add synthetic fixture covering every extraction anomaly"
   - `normalize(raw: str) -> Normalized`, a dataclass with `text: str`,
     `page_offsets: list[int]`, `hyphen_joins: int`, `page_lines_removed: int`,
     `page_joins: int`
-  - `run_pdftotext(pdf: Path, destination: Path) -> str`
+  - `run_pdftotext(pdf: Path, destination: Path) -> int` (returns the count
+    of characters written, never the extracted text)
   - `PAGE_NUMBER: re.Pattern`
 
 - [ ] **Step 1: Write failing tests**
@@ -473,14 +474,21 @@ def normalize(raw: str) -> Normalized:
     return result
 
 
-def run_pdftotext(pdf: Path, destination: Path) -> str:
-    """Extract the PDF's text layer. Raises if pdftotext is missing or fails."""
+def run_pdftotext(pdf: Path, destination: Path) -> int:
+    """Extract the PDF's text layer to `destination`.
+
+    Returns the number of characters written, never the text itself. This is
+    the only function that touches the copyrighted source, so a diagnostic
+    return value makes the disk-to-disk rule structural instead of something
+    every caller has to remember. Read `destination` at the point of use.
+    Raises if pdftotext is missing or fails.
+    """
     subprocess.run(
         ["pdftotext", "-enc", "UTF-8", str(pdf), str(destination)],
         check=True,
         capture_output=True,
     )
-    return destination.read_text(encoding="utf-8")
+    return len(destination.read_text(encoding="utf-8"))
 ```
 
 Note the ordering: a page-opening line records its offset *before* the page-number
@@ -493,6 +501,14 @@ map is provenance only — no later stage indexes into it — so this is not wor
 the complexity of tracking sub-line offsets. Do not add a test asserting exact
 mid-paragraph page offsets; it would be asserting a precision the data does not
 have.
+
+**Second known limitation, accepted:** the hyphen rule joins any line ending in
+`-` with the next one and deletes the hyphen. It cannot tell a line-wrap hyphen
+from a German compound that happens to wrap at its own hyphen, so a compound
+split at exactly that point is glued into one word. Distinguishing the two needs
+a dictionary, which is out of scope for a regex normalizer. `hyphen_joins`
+counts every such join so `parfum check` can surface the number for a human to
+spot-check; do not add a heuristic that guesses.
 
 - [ ] **Step 4: Run tests and verify they pass**
 
@@ -1278,7 +1294,9 @@ def _extract(_args) -> int:
         print(f"no PDF found in {paths.RAW}", file=sys.stderr)
         return 1
 
-    result = normalize(run_pdftotext(pdfs[0], paths.INTERIM / "pdftotext.txt"))
+    raw_path = paths.INTERIM / "pdftotext.txt"
+    run_pdftotext(pdfs[0], raw_path)
+    result = normalize(raw_path.read_text(encoding="utf-8"))
     (paths.INTERIM / "raw.txt").write_text(result.text, encoding="utf-8")
     (paths.INTERIM / "pagemap.json").write_text(
         json.dumps({
