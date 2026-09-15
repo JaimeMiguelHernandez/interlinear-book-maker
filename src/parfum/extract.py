@@ -25,6 +25,10 @@ PAGE_NUMBER = re.compile(r"^-\d{1,4}-$")
 # absorbed into the previous one, however that line happens to end.
 STRUCTURAL = re.compile(r"^(?:\d{1,2}|(?:ERSTER|ZWEITER|DRITTER|VIERTER) TEIL)$")
 
+# A chapter marker can be glued to its paragraph text with a space, so detect both
+# the bare form and the glued form at the line start to prevent it being absorbed.
+MARKER_START = re.compile(r"^(?:\d{1,2}(?:\s|$)|(?:ERSTER|ZWEITER|DRITTER|VIERTER) TEIL)")
+
 # A paragraph is finished when its last line ends in sentence-final punctuation.
 # Anything else is a continuation carried over a page break.
 _TERMINAL = (".", "!", "?", "…", "«", "»", '"', ":", ";")
@@ -44,6 +48,8 @@ def _is_continuation(previous: str, current: str) -> bool:
     if not previous:
         return False
     if STRUCTURAL.fullmatch(previous) or STRUCTURAL.fullmatch(current):
+        return False
+    if MARKER_START.match(current):
         return False
     return not previous.rstrip().endswith(_TERMINAL)
 

@@ -1,9 +1,14 @@
 """Teil / Kapitel / paragraph detection.
 
 Chapter markers are normally a bare number on its own line. In the source PDF,
-marker 50 is glued to the first word of the paragraph that follows it, so both
-forms are recognised. The contiguity check is what catches a marker that was
-missed entirely.
+marker 50 shares a line with the paragraph that follows it, separated by a single
+space, so the separator is optional and both forms are recognised. The contiguity
+check is what catches a marker that was missed entirely.
+
+The extracted text opens with front matter - title and author lines ahead of
+`ERSTER TEIL`. `trim_front_matter` drops it so detection starts at the first Teil
+marker, and returns how many lines it dropped so `parfum check` can report that
+number rather than hide it.
 """
 
 from __future__ import annotations
@@ -13,9 +18,13 @@ from dataclasses import dataclass, field
 
 TEIL_MARKER = re.compile(r"^(ERSTER|ZWEITER|DRITTER|VIERTER) TEIL$")
 CHAPTER_ONLY = re.compile(r"^(\d{1,2})$")
-CHAPTER_GLUED = re.compile(r"^(\d{1,2})(?=[A-ZÄÖÜ»])")
+CHAPTER_GLUED = re.compile(r"^(\d{1,2})\s*(?=[A-ZÄÖÜ»])")
 
 _TEIL_NUMBER = {"ERSTER": 1, "ZWEITER": 2, "DRITTER": 3, "VIERTER": 4}
+
+# Front matter measures 2 lines in the source PDF. The cap is a tripwire: a larger
+# trim means the first Teil marker is not where we think it is.
+MAX_FRONT_MATTER_LINES = 20
 
 
 class StructureError(Exception):
@@ -45,12 +54,34 @@ def _chapter_at(line: str) -> tuple[int | None, str]:
     return None, ""
 
 
+def trim_front_matter(text: str) -> tuple[str, int]:
+    """Drop everything ahead of the first Teil marker.
+
+    Returns the body and the number of non-empty lines dropped. Exported so the
+    concatenation invariant and `parfum check` measure against the same baseline
+    detect() uses; otherwise they compare against text detect() never saw.
+    """
+    lines = text.split("\n")
+    for index, line in enumerate(lines):
+        if TEIL_MARKER.fullmatch(line.strip()):
+            dropped = sum(1 for earlier in lines[:index] if earlier.strip())
+            if dropped > MAX_FRONT_MATTER_LINES:
+                raise StructureError(
+                    f"front matter too long: {dropped} lines before the first Teil"
+                )
+            return "\n".join(lines[index:]), dropped
+    raise StructureError("no Teil marker found")
+
+
 def detect(text: str) -> list[TeilBlock]:
+    # trim_front_matter guarantees the first non-empty line is a Teil marker, so
+    # teile is never empty by the time a chapter or paragraph line is reached.
+    body, _ = trim_front_matter(text)
     teile: list[TeilBlock] = []
     current: KapitelBlock | None = None
     expected = 1
 
-    for raw_line in text.split("\n"):
+    for raw_line in body.split("\n"):
         line = raw_line.strip()
         if not line:
             continue
@@ -63,8 +94,6 @@ def detect(text: str) -> list[TeilBlock]:
 
         number, remainder = _chapter_at(line)
         if number is not None:
-            if not teile:
-                raise StructureError(f"chapter {number} appears before any Teil")
             if number != expected:
                 raise StructureError(
                     f"chapter sequence broken: expected {expected}, found {number}"
