@@ -56,6 +56,13 @@ def test_marker_is_not_swallowed_by_an_unterminated_line():
     assert text.split("\n") == ["Der Satz bricht ab", "5", "Nächster Satz."]
 
 
+def test_glued_marker_is_not_swallowed_by_an_unterminated_line():
+    """A glued marker (digits directly adjacent to capital letter) must not be
+    absorbed into the previous line, even when that line lacks terminal punctuation."""
+    text = normalize("Der Satz bricht ab\n3Der Text klebt am Marker.").text
+    assert text.split("\n") == ["Der Satz bricht ab", "3Der Text klebt am Marker."]
+
+
 def test_run_pdftotext_returns_character_count_not_text(tmp_path):
     """Verify run_pdftotext returns int (char count), not the extracted text."""
     pdf_path = tmp_path / "fake.pdf"
