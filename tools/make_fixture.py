@@ -26,4 +26,4 @@ FIXTURE = (
 
 Path(__file__).resolve().parents[1].joinpath(
     "tests/fixtures/mini_book.txt"
-).write_text(FIXTURE, encoding="utf-8")
+).write_text(FIXTURE, encoding="utf-8", newline="\n")
