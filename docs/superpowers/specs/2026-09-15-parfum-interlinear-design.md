@@ -48,12 +48,28 @@ Measured from the source PDF via `pdftotext -enc UTF-8`:
 | Characters | 489,862 |
 | German words | 75,129 |
 | Sentences (approx.) | 3,903 |
-| Paragraphs | 563 |
+| Paragraphs | ~1,200 (exact count established by stage 1) |
 | Chapters | 51, across 4 Teile |
 | Line-end hyphens | 3 |
 | Umlaut extraction | Correct |
 
-The text layer is clean. Extraction is a solved problem, not a research problem.
+The text layer is clean. Extraction is a solved problem, but not a trivial one —
+probing the extracted text turned up four structural facts that stage 1 must handle:
+
+1. **One paragraph per line.** `pdftotext` does not hard-wrap; each paragraph
+   arrives as a single line averaging ~319 characters. Blank lines are page
+   artifacts, not paragraph separators.
+2. **Page numbers appear as `-100-` lines** and must be stripped (206 lines of
+   the three-digit form alone).
+3. **Form feeds mark page boundaries** and attach to the start of the following
+   line. They drive the page map, then are removed.
+4. **Chapter markers are standalone numeric lines 1–51, with one anomaly:**
+   marker `50` is glued to the start of the paragraph that follows it. A naive
+   `^\d{1,2}$` scan finds 50 chapters, not 51.
+
+Paragraphs also continue across page breaks, so lines must be rejoined where the
+previous line does not end in sentence-final punctuation. The three line-end
+hyphens are a subset of that case.
 
 ---
 
