@@ -369,6 +369,13 @@ def test_paragraphs_survive_as_whole_lines():
     assert "ERSTER TEIL" in lines
     assert "1" in lines
     assert not any(line.strip() == "" for line in lines)
+
+
+def test_structural_markers_are_never_merged():
+    """A Teil marker does not end in punctuation, so a naive continuation rule
+    swallows the chapter number that follows it."""
+    lines = normalize("ERSTER TEIL\n1\nEin Satz.\nZWEITER TEIL\n2\nNoch einer.").text.split("\n")
+    assert lines == ["ERSTER TEIL", "1", "Ein Satz.", "ZWEITER TEIL", "2", "Noch einer."]
 ```
 
 - [ ] **Step 2: Run and verify failure**
@@ -398,6 +405,10 @@ from pathlib import Path
 
 PAGE_NUMBER = re.compile(r"^-\d{1,4}-$")
 
+# Structural markers stand alone. They never absorb the next line and are never
+# absorbed into the previous one, however that line happens to end.
+STRUCTURAL = re.compile(r"^(?:\d{1,2}|(?:ERSTER|ZWEITER|DRITTER|VIERTER) TEIL)$")
+
 # A paragraph is finished when its last line ends in sentence-final punctuation.
 # Anything else is a continuation carried over a page break.
 _TERMINAL = (".", "!", "?", "\u2026", "\u00ab", "\u00bb", '"', ":", ";")
@@ -412,8 +423,13 @@ class Normalized:
     page_joins: int = 0
 
 
-def _is_continuation(previous: str) -> bool:
-    return bool(previous) and not previous.rstrip().endswith(_TERMINAL)
+def _is_continuation(previous: str, current: str) -> bool:
+    """True when `current` continues the paragraph on `previous`."""
+    if not previous:
+        return False
+    if STRUCTURAL.fullmatch(previous) or STRUCTURAL.fullmatch(current):
+        return False
+    return not previous.rstrip().endswith(_TERMINAL)
 
 
 def normalize(raw: str) -> Normalized:
@@ -433,7 +449,7 @@ def normalize(raw: str) -> Normalized:
                 result.page_lines_removed += 1
             continue
 
-        if lines and _is_continuation(lines[-1]):
+        if lines and _is_continuation(lines[-1], stripped):
             if lines[-1].endswith("-"):
                 lines[-1] = lines[-1][:-1] + stripped
                 result.hyphen_joins += 1
