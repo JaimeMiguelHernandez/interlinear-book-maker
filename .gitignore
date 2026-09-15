@@ -19,3 +19,6 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+
+# Local agent/tool state
+.claude/
