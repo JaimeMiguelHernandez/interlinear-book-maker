@@ -1,0 +1,21 @@
+# Source text is copyrighted — never commit it
+*.pdf
+data/raw/
+
+# Generated and derived artifacts
+data/interim/
+data/cache/
+data/workorders/
+data/output/
+data/reference/
+
+# Secrets
+.env
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
