@@ -320,7 +320,8 @@ git commit -m "test: add synthetic fixture covering every extraction anomaly"
   - `normalize(raw: str) -> Normalized`, a dataclass with `text: str`,
     `page_offsets: list[int]`, `hyphen_joins: int`, `page_lines_removed: int`,
     `page_joins: int`
-  - `run_pdftotext(pdf: Path, destination: Path) -> str`
+  - `run_pdftotext(pdf: Path, destination: Path) -> int` (returns the count
+    of characters written, never the extracted text)
   - `PAGE_NUMBER: re.Pattern`
 
 - [ ] **Step 1: Write failing tests**
@@ -369,6 +370,13 @@ def test_paragraphs_survive_as_whole_lines():
     assert "ERSTER TEIL" in lines
     assert "1" in lines
     assert not any(line.strip() == "" for line in lines)
+
+
+def test_structural_markers_are_never_merged():
+    """A Teil marker does not end in punctuation, so a naive continuation rule
+    swallows the chapter number that follows it."""
+    lines = normalize("ERSTER TEIL\n1\nEin Satz.\nZWEITER TEIL\n2\nNoch einer.").text.split("\n")
+    assert lines == ["ERSTER TEIL", "1", "Ein Satz.", "ZWEITER TEIL", "2", "Noch einer."]
 ```
 
 - [ ] **Step 2: Run and verify failure**
@@ -398,6 +406,16 @@ from pathlib import Path
 
 PAGE_NUMBER = re.compile(r"^-\d{1,4}-$")
 
+# Structural markers stand alone. They never absorb the next line and are never
+# absorbed into the previous one, however that line happens to end.
+STRUCTURAL = re.compile(r"^(?:\d{1,2}|(?:ERSTER|ZWEITER|DRITTER|VIERTER) TEIL)$")
+
+# A glued marker (`50 Als ...`) opens a paragraph without occupying a line of its
+# own, so STRUCTURAL cannot see it. Measured against the real book it matches zero
+# genuine page joins, so refusing to absorb one costs nothing and keeps a chapter
+# marker from being swallowed by the paragraph above it.
+MARKER_START = re.compile(r"^\d{1,2}\s*[A-Z\u00c4\u00d6\u00dc\u00bb]")
+
 # A paragraph is finished when its last line ends in sentence-final punctuation.
 # Anything else is a continuation carried over a page break.
 _TERMINAL = (".", "!", "?", "\u2026", "\u00ab", "\u00bb", '"', ":", ";")
@@ -412,8 +430,15 @@ class Normalized:
     page_joins: int = 0
 
 
-def _is_continuation(previous: str) -> bool:
-    return bool(previous) and not previous.rstrip().endswith(_TERMINAL)
+def _is_continuation(previous: str, current: str) -> bool:
+    """True when `current` continues the paragraph on `previous`."""
+    if not previous:
+        return False
+    if STRUCTURAL.fullmatch(previous) or STRUCTURAL.fullmatch(current):
+        return False
+    if MARKER_START.match(current):
+        return False
+    return not previous.rstrip().endswith(_TERMINAL)
 
 
 def normalize(raw: str) -> Normalized:
@@ -433,7 +458,7 @@ def normalize(raw: str) -> Normalized:
                 result.page_lines_removed += 1
             continue
 
-        if lines and _is_continuation(lines[-1]):
+        if lines and _is_continuation(lines[-1], stripped):
             if lines[-1].endswith("-"):
                 lines[-1] = lines[-1][:-1] + stripped
                 result.hyphen_joins += 1
@@ -457,14 +482,21 @@ def normalize(raw: str) -> Normalized:
     return result
 
 
-def run_pdftotext(pdf: Path, destination: Path) -> str:
-    """Extract the PDF's text layer. Raises if pdftotext is missing or fails."""
+def run_pdftotext(pdf: Path, destination: Path) -> int:
+    """Extract the PDF's text layer to `destination`.
+
+    Returns the number of characters written, never the text itself. This is
+    the only function that touches the copyrighted source, so a diagnostic
+    return value makes the disk-to-disk rule structural instead of something
+    every caller has to remember. Read `destination` at the point of use.
+    Raises if pdftotext is missing or fails.
+    """
     subprocess.run(
         ["pdftotext", "-enc", "UTF-8", str(pdf), str(destination)],
         check=True,
         capture_output=True,
     )
-    return destination.read_text(encoding="utf-8")
+    return len(destination.read_text(encoding="utf-8"))
 ```
 
 Note the ordering: a page-opening line records its offset *before* the page-number
@@ -477,6 +509,14 @@ map is provenance only — no later stage indexes into it — so this is not wor
 the complexity of tracking sub-line offsets. Do not add a test asserting exact
 mid-paragraph page offsets; it would be asserting a precision the data does not
 have.
+
+**Second known limitation, accepted:** the hyphen rule joins any line ending in
+`-` with the next one and deletes the hyphen. It cannot tell a line-wrap hyphen
+from a German compound that happens to wrap at its own hyphen, so a compound
+split at exactly that point is glued into one word. Distinguishing the two needs
+a dictionary, which is out of scope for a regex normalizer. `hyphen_joins`
+counts every such join so `parfum check` can surface the number for a human to
+spot-check; do not add a heuristic that guesses.
 
 - [ ] **Step 4: Run tests and verify they pass**
 
@@ -506,6 +546,8 @@ git commit -m "feat: normalize pdftotext output into paragraph lines with a page
 - Consumes: the `text` field of `normalize()`'s result
 - Produces:
   - `detect(text: str) -> list[TeilBlock]`
+  - `trim_front_matter(text: str) -> tuple[str, int]`
+  - `MAX_FRONT_MATTER_LINES: int`
   - `TeilBlock(number: int, kapitel: list[KapitelBlock])`
   - `KapitelBlock(number: int, paragraphs: list[str])`
   - `StructureError(Exception)`
@@ -520,7 +562,12 @@ from pathlib import Path
 import pytest
 
 from parfum.extract import normalize
-from parfum.structure import StructureError, detect
+from parfum.structure import (
+    MAX_FRONT_MATTER_LINES,
+    StructureError,
+    detect,
+    trim_front_matter,
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mini_book.txt"
 
@@ -560,6 +607,39 @@ def test_rejects_a_paragraph_before_any_chapter():
     text = "ERSTER TEIL\nEin herrenloser Absatz.\n1\nEin Satz."
     with pytest.raises(StructureError, match="before any chapter"):
         detect(text)
+
+
+def test_recognises_a_marker_separated_from_its_paragraph_by_a_space():
+    text = "ERSTER TEIL\n1\nEin Satz.\n2 Der Text steht daneben."
+    kapitel_2 = detect(text)[0].kapitel[1]
+    assert kapitel_2.paragraphs == ["Der Text steht daneben."]
+
+
+def test_a_bare_marker_contributes_no_paragraph():
+    kapitel_1 = detect("ERSTER TEIL\n1\nEin Satz.")[0].kapitel[0]
+    assert kapitel_1.paragraphs == ["Ein Satz."]
+
+
+def test_trims_front_matter_and_counts_what_it_dropped():
+    body, dropped = trim_front_matter(
+        "Das Parfum\nEin Roman\n\nERSTER TEIL\n1\nEin Satz."
+    )
+    assert dropped == 2
+    assert body.startswith("ERSTER TEIL")
+
+
+def test_rejects_text_with_no_teil_marker():
+    with pytest.raises(StructureError, match="no Teil marker"):
+        detect("1\nEin Satz ohne Teil.")
+
+
+def test_rejects_front_matter_longer_than_the_cap():
+    text = (
+        "\n".join(["Zeile"] * (MAX_FRONT_MATTER_LINES + 1))
+        + "\nERSTER TEIL\n1\nEin Satz."
+    )
+    with pytest.raises(StructureError, match="front matter too long"):
+        trim_front_matter(text)
 ```
 
 - [ ] **Step 2: Run and verify failure**
@@ -576,9 +656,14 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'parfum.structure'`
 """Teil / Kapitel / paragraph detection.
 
 Chapter markers are normally a bare number on its own line. In the source PDF,
-marker 50 is glued to the first word of the paragraph that follows it, so both
-forms are recognised. The contiguity check is what catches a marker that was
-missed entirely.
+marker 50 shares a line with the paragraph that follows it, separated by a single
+space, so the separator is optional and both forms are recognised. The contiguity
+check is what catches a marker that was missed entirely.
+
+The extracted text opens with front matter - title and author lines ahead of
+`ERSTER TEIL`. `trim_front_matter` drops it so detection starts at the first Teil
+marker, and returns how many lines it dropped so `parfum check` can report that
+number rather than hide it.
 """
 
 from __future__ import annotations
@@ -588,9 +673,13 @@ from dataclasses import dataclass, field
 
 TEIL_MARKER = re.compile(r"^(ERSTER|ZWEITER|DRITTER|VIERTER) TEIL$")
 CHAPTER_ONLY = re.compile(r"^(\d{1,2})$")
-CHAPTER_GLUED = re.compile(r"^(\d{1,2})(?=[A-Z\u00c4\u00d6\u00dc\u00bb])")
+CHAPTER_GLUED = re.compile(r"^(\d{1,2})\s*(?=[A-Z\u00c4\u00d6\u00dc\u00bb])")
 
 _TEIL_NUMBER = {"ERSTER": 1, "ZWEITER": 2, "DRITTER": 3, "VIERTER": 4}
+
+# Front matter measures 2 lines in the source PDF. The cap is a tripwire: a larger
+# trim means the first Teil marker is not where we think it is.
+MAX_FRONT_MATTER_LINES = 20
 
 
 class StructureError(Exception):
@@ -620,12 +709,34 @@ def _chapter_at(line: str) -> tuple[int | None, str]:
     return None, ""
 
 
+def trim_front_matter(text: str) -> tuple[str, int]:
+    """Drop everything ahead of the first Teil marker.
+
+    Returns the body and the number of non-empty lines dropped. Exported so the
+    concatenation invariant and `parfum check` measure against the same baseline
+    detect() uses; otherwise they compare against text detect() never saw.
+    """
+    lines = text.split("\n")
+    for index, line in enumerate(lines):
+        if TEIL_MARKER.fullmatch(line.strip()):
+            dropped = sum(1 for earlier in lines[:index] if earlier.strip())
+            if dropped > MAX_FRONT_MATTER_LINES:
+                raise StructureError(
+                    f"front matter too long: {dropped} lines before the first Teil"
+                )
+            return "\n".join(lines[index:]), dropped
+    raise StructureError("no Teil marker found")
+
+
 def detect(text: str) -> list[TeilBlock]:
+    # trim_front_matter guarantees the first non-empty line is a Teil marker, so
+    # teile is never empty by the time a chapter or paragraph line is reached.
+    body, _ = trim_front_matter(text)
     teile: list[TeilBlock] = []
     current: KapitelBlock | None = None
     expected = 1
 
-    for raw_line in text.split("\n"):
+    for raw_line in body.split("\n"):
         line = raw_line.strip()
         if not line:
             continue
@@ -638,8 +749,6 @@ def detect(text: str) -> list[TeilBlock]:
 
         number, remainder = _chapter_at(line)
         if number is not None:
-            if not teile:
-                raise StructureError(f"chapter {number} appears before any Teil")
             if number != expected:
                 raise StructureError(
                     f"chapter sequence broken: expected {expected}, found {number}"
@@ -664,7 +773,7 @@ def detect(text: str) -> list[TeilBlock]:
 uv run pytest tests/test_structure.py -v
 ```
 
-Expected: 6 passed
+Expected: 11 passed
 
 - [ ] **Step 5: Commit**
 
@@ -1262,7 +1371,9 @@ def _extract(_args) -> int:
         print(f"no PDF found in {paths.RAW}", file=sys.stderr)
         return 1
 
-    result = normalize(run_pdftotext(pdfs[0], paths.INTERIM / "pdftotext.txt"))
+    raw_path = paths.INTERIM / "pdftotext.txt"
+    run_pdftotext(pdfs[0], raw_path)
+    result = normalize(raw_path.read_text(encoding="utf-8"))
     (paths.INTERIM / "raw.txt").write_text(result.text, encoding="utf-8")
     (paths.INTERIM / "pagemap.json").write_text(
         json.dumps({
