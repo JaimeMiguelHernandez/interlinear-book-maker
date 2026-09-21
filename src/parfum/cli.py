@@ -229,6 +229,32 @@ def _translate(args) -> int:
     return 0
 
 
+def _verify(args) -> int:
+    from parfum.verify import verify, write_flags
+
+    translated_path = paths.INTERIM / "translated.json"
+    if not translated_path.is_file():
+        print(f"ERROR: {translated_path} does not exist. Run 'parfum translate' first.", file=sys.stderr)
+        return 1
+
+    book = _read_book()
+    with open(translated_path, encoding="utf-8") as handle:
+        translated = json.load(handle)
+
+    result = verify(book, translated, scope=args.scope)
+    write_flags(result, paths.INTERIM / "flags.json")
+
+    print(f"checked: {result.checked_saetze} sentences, {result.checked_sektionen} sektionen  "
+          f"flags: {len(result.flags)}")
+    if not result.is_valid:
+        for flag in result.flags[:20]:
+            print(f"  [{flag.defect_type.value}] {flag.satz_id}: {flag.message}", file=sys.stderr)
+        if len(result.flags) > 20:
+            print(f"  ... and {len(result.flags) - 20} more flags (see data/interim/flags.json)", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="parfum")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -249,6 +275,8 @@ def main(argv=None) -> int:
     tr.add_argument("--scope", default=None)
     tr.add_argument("--force", action="store_true")
     tr.add_argument("--dry-run", action="store_true")
+    ve = sub.add_parser("verify", help="check translated.json against book.json")
+    ve.add_argument("--scope", default=None)
     args = parser.parse_args(argv)
     return {
         "extract": _extract,
@@ -260,6 +288,7 @@ def main(argv=None) -> int:
         "glossary-upload": _glossary_upload,
         "glossary-ab": _glossary_ab,
         "translate": _translate,
+        "verify": _verify,
     }[args.command](args)
 
 

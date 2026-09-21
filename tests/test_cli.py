@@ -178,3 +178,53 @@ def test_translate_force_dry_run_ignores_the_cache_in_its_preflight_count(
     assert cli.main(["translate", "--force", "--dry-run"]) == 0
     out = capsys.readouterr().out
     assert "pending sentences: 1" in out
+
+
+def test_verify_passes_when_valid(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
+        {"id": "T1.K01", "number": 1, "sektionen": [
+            {"id": "T1.K01.S01", "saetze": [
+                {"id": "T1.K01.S01.s001", "text": "Der Gestank."}]}]}]}]}
+    (tmp_path / "book.json").write_text(json.dumps(book), encoding="utf-8")
+    (tmp_path / "translated.json").write_text(
+        json.dumps({"T1.K01.S01.s001": "The stench."}), encoding="utf-8"
+    )
+
+    assert cli.main(["verify"]) == 0
+    out = capsys.readouterr().out
+    assert "flags: 0" in out
+    flags_file = tmp_path / "flags.json"
+    assert flags_file.exists()
+    flags_data = json.loads(flags_file.read_text(encoding="utf-8"))
+    assert flags_data["valid"] is True
+
+
+def test_verify_fails_when_defect_found(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
+        {"id": "T1.K01", "number": 1, "sektionen": [
+            {"id": "T1.K01.S01", "saetze": [
+                {"id": "T1.K01.S01.s001", "text": "Der Gestank."}]}]}]}]}
+    (tmp_path / "book.json").write_text(json.dumps(book), encoding="utf-8")
+    (tmp_path / "translated.json").write_text(
+        json.dumps({"T1.K01.S01.s001": ""}), encoding="utf-8"
+    )
+
+    assert cli.main(["verify"]) == 1
+    out = capsys.readouterr().out
+    assert "flags: 1" in out
+    flags_file = tmp_path / "flags.json"
+    assert flags_file.exists()
+    flags_data = json.loads(flags_file.read_text(encoding="utf-8"))
+    assert flags_data["valid"] is False
+    assert len(flags_data["flags"]) == 1
+
+
+def test_verify_missing_translated_file(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    assert cli.main(["verify"]) == 1
+    err = capsys.readouterr().err
+    assert "does not exist" in err
+
+
