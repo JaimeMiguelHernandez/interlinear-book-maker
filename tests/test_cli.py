@@ -98,3 +98,41 @@ def test_glossary_validate_rejects_an_entry_without_a_matching_sense(tmp_path, m
     save_subset({"Zug": [Sense("noun", "train"), Sense("noun", "draught")]},
                 tmp_path / "senses.json")
     assert cli.main(["glossary-validate"]) == 1
+
+
+def test_translate_force_dry_run_ignores_the_cache_in_its_preflight_count(
+        tmp_path, monkeypatch, capsys):
+    from parfum.cache import Cache
+    from parfum.cache import key as cache_key
+    from parfum.deepl import MODEL_TYPE, Translation
+
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    monkeypatch.setattr(paths, "DEEPL_CACHE", tmp_path / "cache")
+    monkeypatch.setattr(paths, "CONFIG", tmp_path)
+    monkeypatch.setenv("DEEPL_AUTH_KEY", "key")
+    (tmp_path / "deepl_instructions.json").write_text("[]", encoding="utf-8")
+    book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
+        {"id": "T1.K01", "number": 1, "sektionen": [
+            {"id": "T1.K01.S01", "saetze": [
+                {"id": "T1.K01.S01.s001", "text": "Der Gestank."}]}]}]}]}
+    (tmp_path / "book.json").write_text(json.dumps(book), encoding="utf-8")
+
+    # Pre-populate the cache so the sentence is already translated. No
+    # config/glossary.tsv and empty instructions above match what cli._translate
+    # will load, so this is the exact key it will look up.
+    cache = Cache(tmp_path / "cache")
+    cache.put(cache_key("Der Gestank.", [], MODEL_TYPE, []),
+              Translation("The stench.", 12, MODEL_TYPE))
+
+    class FakeClient:
+        def usage(self):
+            from parfum.deepl import Usage
+            return Usage(0, 500_000)
+
+        def translate(self, *a, **kw):
+            raise AssertionError("dry run must not translate")
+
+    monkeypatch.setattr(cli, "_client", lambda: FakeClient())
+    assert cli.main(["translate", "--force", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "pending sentences: 1" in out

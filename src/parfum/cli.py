@@ -193,7 +193,7 @@ def _translate(args) -> int:
     saetze = [s for s in book.iter_saetze()
               if args.scope is None or s.id.startswith(args.scope)]
     pending = [s.text for s in saetze
-               if cache.get(cache_key(s.text, entries, MODEL_TYPE, instructions)) is None]
+               if args.force or cache.get(cache_key(s.text, entries, MODEL_TYPE, instructions)) is None]
     check = preflight(pending, client.usage())
     print(f"pending sentences: {check.pending_sentences}  "
           f"pending characters: {check.pending_characters}  "
