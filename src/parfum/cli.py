@@ -255,6 +255,29 @@ def _verify(args) -> int:
     return 0
 
 
+def _render(args) -> int:
+    from parfum.render import render_book
+
+    translated_path = paths.INTERIM / "translated.json"
+    if not translated_path.is_file():
+        print(f"ERROR: {translated_path} does not exist. Run 'parfum translate' first.", file=sys.stderr)
+        return 1
+
+    book = _read_book()
+    with open(translated_path, encoding="utf-8") as handle:
+        translated = json.load(handle)
+
+    summary = render_book(book, translated, paths.OUTPUT, scope=args.scope, force=args.force)
+
+    print(f"emitted: {summary.emitted}  skipped: {summary.skipped}  "
+          f"conflicts: {len(summary.conflicts)}  total: {summary.total}")
+    if summary.conflicts:
+        for conflict in summary.conflicts:
+            print(f"CONFLICT: {conflict} was hand-edited; wrote incoming to *.incoming.md", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="parfum")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -277,6 +300,9 @@ def main(argv=None) -> int:
     tr.add_argument("--dry-run", action="store_true")
     ve = sub.add_parser("verify", help="check translated.json against book.json")
     ve.add_argument("--scope", default=None)
+    rn = sub.add_parser("render", help="book.json + translated.json -> data/output/ markdown")
+    rn.add_argument("--scope", default=None)
+    rn.add_argument("--force", action="store_true")
     args = parser.parse_args(argv)
     return {
         "extract": _extract,
@@ -289,6 +315,7 @@ def main(argv=None) -> int:
         "glossary-ab": _glossary_ab,
         "translate": _translate,
         "verify": _verify,
+        "render": _render,
     }[args.command](args)
 
 
