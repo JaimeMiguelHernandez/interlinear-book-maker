@@ -13,6 +13,7 @@ MAX_ELEMENTS = 50
 MAX_BYTES = 131_072            # 128 KiB per request
 MAX_INSTRUCTIONS = 10
 MAX_INSTRUCTION_CHARS = 300
+REQUEST_OVERHEAD_BYTES = 8192  # Conservative reservation for context, custom_instructions, and fixed JSON fields that build_request adds
 
 
 @dataclass(frozen=True)
@@ -35,13 +36,23 @@ def load_instructions(path: Path) -> list[str]:
 
 
 def build_batches(texts: list[str]) -> list[list[int]]:
-    """Index batches respecting both the 50-element and 128 KiB limits."""
+    """Index batches respecting both the 50-element and 128 KiB limits.
+
+    Reserves REQUEST_OVERHEAD_BYTES for context, custom_instructions, and fixed
+    JSON fields that build_request adds; batches are sized against the effective
+    budget (MAX_BYTES - REQUEST_OVERHEAD_BYTES).
+    """
+    effective_budget = MAX_BYTES - REQUEST_OVERHEAD_BYTES
     batches: list[list[int]] = []
     current: list[int] = []
     size = 2                                    # the enclosing JSON array
     for index, text in enumerate(texts):
         cost = len(json.dumps(text).encode("utf-8")) + 1
-        if current and (len(current) >= MAX_ELEMENTS or size + cost > MAX_BYTES):
+        if cost > effective_budget:
+            raise ValueError(
+                f"{cost} bytes exceeds {effective_budget}-byte request budget"
+            )
+        if current and (len(current) >= MAX_ELEMENTS or size + cost > effective_budget):
             batches.append(current)
             current, size = [], 2
         current.append(index)

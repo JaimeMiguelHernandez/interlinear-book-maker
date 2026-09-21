@@ -64,3 +64,21 @@ def test_parse_response_reads_text_and_billing():
         {"text": "The stench.", "billed_characters": 12,
          "model_type_used": "quality_optimized"}]}
     assert parse_response(payload) == [Translation("The stench.", 12, "quality_optimized")]
+
+
+def test_build_batches_reserves_overhead_for_context_and_instructions():
+    from parfum.deepl import REQUEST_OVERHEAD_BYTES
+    # Batch size (serialized text array + overhead) should not exceed MAX_BYTES
+    batches = build_batches(["x" * 1000] * 100)
+    for batch in batches:
+        text_size = len(json.dumps([("x" * 1000)] * len(batch)).encode())
+        total_size = text_size + REQUEST_OVERHEAD_BYTES
+        assert total_size <= 131072, f"Batch {batch} exceeds budget: {total_size} > 131072"
+
+
+def test_build_batches_rejects_oversized_elements():
+    from parfum.deepl import REQUEST_OVERHEAD_BYTES, MAX_BYTES
+    # Element larger than effective budget should raise ValueError
+    oversized = "y" * (MAX_BYTES - REQUEST_OVERHEAD_BYTES + 1000)
+    with pytest.raises(ValueError, match="exceeds"):
+        build_batches([oversized])
