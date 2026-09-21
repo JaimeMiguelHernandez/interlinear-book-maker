@@ -48,7 +48,7 @@ def build_batches(texts: list[str]) -> list[list[int]]:
     size = 2                                    # the enclosing JSON array
     for index, text in enumerate(texts):
         cost = len(json.dumps(text).encode("utf-8")) + 1
-        if cost > effective_budget:
+        if cost + 2 > effective_budget:
             raise ValueError(
                 f"{cost} bytes exceeds {effective_budget}-byte request budget"
             )
