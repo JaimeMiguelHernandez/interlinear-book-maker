@@ -20,4 +20,12 @@ venv/
 .pytest_cache/
 
 # Local agent/tool state
-.claude/
+.claude/settings.local.json
+.claude/worktrees/
+.claude/agent-memory/
+.claude/.headroom_*
+.gemini/settings.local.json
+.mcp.local.json
+
+
+.env.ps1

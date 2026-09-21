@@ -259,4 +259,117 @@ def test_render_missing_translated_file(tmp_path, monkeypatch, capsys):
     assert "does not exist" in err
 
 
+def test_publish_missing_translated_file(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    monkeypatch.setattr(paths, "OUTPUT", tmp_path / "output")
+    assert cli.main(["publish"]) == 1
+    err = capsys.readouterr().err
+    assert "does not exist" in err
+
+
+def test_publish_missing_env_vars(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    monkeypatch.setattr(paths, "OUTPUT", tmp_path / "output")
+    (tmp_path / "translated.json").write_text("{}", encoding="utf-8")
+    monkeypatch.delenv("NOTION_API_KEY", raising=False)
+    monkeypatch.delenv("NOTION_PARENT_ID", raising=False)
+
+    assert cli.main(["publish"]) == 1
+    err = capsys.readouterr().err
+    assert "NOTION_API_KEY is not set" in err
+
+    monkeypatch.setenv("NOTION_API_KEY", "key")
+    assert cli.main(["publish"]) == 1
+    err2 = capsys.readouterr().err
+    assert "NOTION_PARENT_ID is not set" in err2
+
+
+def test_publish_dry_run(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    monkeypatch.setattr(paths, "OUTPUT", tmp_path / "output")
+    monkeypatch.setenv("NOTION_API_KEY", "key")
+    monkeypatch.setenv("NOTION_PARENT_ID", "parent-1")
+
+    book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
+        {"id": "T1.K01", "number": 1, "sektionen": [
+            {"id": "T1.K01.S01", "saetze": [
+                {"id": "T1.K01.S01.s001", "text": "Der Gestank."}]}]}]}]}
+    (tmp_path / "book.json").write_text(json.dumps(book), encoding="utf-8")
+    (tmp_path / "translated.json").write_text(
+        json.dumps({"T1.K01.S01.s001": "The stench."}), encoding="utf-8"
+    )
+
+    class FakeClient:
+        def create_page(self, *a, **kw):
+            raise AssertionError("dry run must not call Notion API")
+
+    monkeypatch.setattr(cli, "_notion_client", lambda k, p: FakeClient())
+    assert cli.main(["publish", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "published: 1" in out
+    assert "skipped: 0" in out
+    assert not (tmp_path / "output" / "published.json").exists()
+
+
+def test_publish_success_and_ledger_written(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    monkeypatch.setattr(paths, "OUTPUT", tmp_path / "output")
+    monkeypatch.setenv("NOTION_API_KEY", "key")
+    monkeypatch.setenv("NOTION_PARENT_ID", "parent-1")
+
+    book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
+        {"id": "T1.K01", "number": 1, "sektionen": [
+            {"id": "T1.K01.S01", "saetze": [
+                {"id": "T1.K01.S01.s001", "text": "Der Gestank."}]}]}]}]}
+    (tmp_path / "book.json").write_text(json.dumps(book), encoding="utf-8")
+    (tmp_path / "translated.json").write_text(
+        json.dumps({"T1.K01.S01.s001": "The stench."}), encoding="utf-8"
+    )
+
+    created = []
+
+    class FakeClient:
+        def create_page(self, title, block):
+            created.append(title)
+            return "page-123"
+
+    monkeypatch.setattr(cli, "_notion_client", lambda k, p: FakeClient())
+    assert cli.main(["publish"]) == 0
+    out = capsys.readouterr().out
+    assert "published: 1" in out
+    assert created == ["T1.K01.S01"]
+
+    ledger_path = tmp_path / "output" / "published.json"
+    assert ledger_path.exists()
+    data = json.loads(ledger_path.read_text(encoding="utf-8"))
+    assert data["T1.K01.S01"]["page_id"] == "page-123"
+
+
+def test_publish_never_prints_book_text(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    monkeypatch.setattr(paths, "OUTPUT", tmp_path / "output")
+    monkeypatch.setenv("NOTION_API_KEY", "key")
+    monkeypatch.setenv("NOTION_PARENT_ID", "parent-1")
+
+    book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
+        {"id": "T1.K01", "number": 1, "sektionen": [
+            {"id": "T1.K01.S01", "saetze": [
+                {"id": "T1.K01.S01.s001", "text": "Der Gestank."}]}]}]}]}
+    (tmp_path / "book.json").write_text(json.dumps(book), encoding="utf-8")
+    (tmp_path / "translated.json").write_text(
+        json.dumps({"T1.K01.S01.s001": "The stench."}), encoding="utf-8"
+    )
+
+    class FakeClient:
+        def create_page(self, title, block):
+            return "page-123"
+
+    monkeypatch.setattr(cli, "_notion_client", lambda k, p: FakeClient())
+    cli.main(["publish"])
+    captured = capsys.readouterr()
+    assert "Der Gestank" not in captured.out + captured.err
+    assert "The stench" not in captured.out + captured.err
+
+
+
 
