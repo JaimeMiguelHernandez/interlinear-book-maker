@@ -5,13 +5,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data"
 
-SUBDIRS = ("raw", "reference", "interim", "cache", "workorders", "output")
+SUBDIRS = ("raw", "reference", "interim", "cache", "output")
 
 RAW = DATA / "raw"
 REFERENCE = DATA / "reference"
 INTERIM = DATA / "interim"
 CACHE = DATA / "cache"
-WORKORDERS = DATA / "workorders"
 OUTPUT = DATA / "output"
 
 
