@@ -94,14 +94,46 @@ def _check(_args) -> int:
     return 1 if problems else 0
 
 
+def _glossary_candidates(args) -> int:
+    """Generate glossary candidates from book, filtered by frequency and sense count."""
+    from parfum.candidates import count_lemmas, monosemous, recurring
+    from parfum.sentences import load_nlp
+    from parfum.wiktextract import load_subset
+
+    book = Book.from_dict(
+        json.loads((paths.INTERIM / "book.json").read_text(encoding="utf-8"))
+    )
+    senses = load_subset(paths.REFERENCE / "senses.json")
+
+    counted = count_lemmas(book, load_nlp())
+    kept = monosemous(recurring(counted, args.min_count), senses)
+
+    rows = ["lemma\tpos\tcount\tgloss"] + [
+        f"{c.lemma}\t{c.pos}\t{c.count}\t{senses[c.lemma][0].gloss}" for c in kept
+    ]
+    (paths.INTERIM / "candidates.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+    print(f"lemmas: {len(counted)}  recurring: {len(recurring(counted, args.min_count))}  "
+          f"candidates: {len(kept)}")
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="parfum")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("extract", help="PDF -> raw.txt + pagemap.json")
     sub.add_parser("segment", help="raw.txt -> book.json")
     sub.add_parser("check", help="verify book.json against raw.txt")
+    cand = sub.add_parser("glossary-candidates",
+                          help="book.json -> candidates.tsv for curation")
+    cand.add_argument("--min-count", type=int, default=8)
     args = parser.parse_args(argv)
-    return {"extract": _extract, "segment": _segment, "check": _check}[args.command](args)
+    return {
+        "extract": _extract,
+        "segment": _segment,
+        "check": _check,
+        "glossary-candidates": _glossary_candidates,
+    }[args.command](args)
 
 
 if __name__ == "__main__":
