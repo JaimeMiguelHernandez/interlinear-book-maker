@@ -345,15 +345,15 @@ actually breaks.
 
 ## 8. Definition of Done
 
-| Stage | Done when |
-|---|---|
-| 1 `extract` | All page text accounted for; known hyphen joins correct; umlauts verified |
-| 2 `segment` | Concatenation invariant holds; trap cases pass; every Sektion 40–55 sentences, no paragraph split |
-| 3 `glossary` | Every entry monosemous with evidence; A/B on a fixed sample shows no regression |
-| 4 `translate` | Row parity structural; billed characters within ±5% of pre-flight estimate |
-| 5 `verify` | Every injected defect class caught; `flags.json` produced |
-| 6 `render` | Snapshot match; manifest written; nothing clobbered |
-| 7 `publish` | Page count matches Sektion count; re-running changes nothing |
+| Stage | Done when | Status |
+|---|---|---|
+| 1 `extract` | All page text accounted for; known hyphen joins correct; umlauts verified | Done |
+| 2 `segment` | Concatenation invariant holds; trap cases pass; every Sektion 40–55 sentences, no paragraph split | Done |
+| 3 `glossary` | Every entry monosemous with evidence; A/B on a fixed sample shows no regression | Curated & validated (live A/B deferred pending `DEEPL_AUTH_KEY`) |
+| 4 `translate` | Row parity structural; billed characters within ±5% of pre-flight estimate | Implemented & verified against primed cache (live translation deferred pending `DEEPL_AUTH_KEY`) |
+| 5 `verify` | Every injected defect class caught; `flags.json` produced | Pending |
+| 6 `render` | Snapshot match; manifest written; nothing clobbered | Pending |
+| 7 `publish` | Page count matches Sektion count; re-running changes nothing | Pending |
 
 **Project done:** all 51 Kapitel rendered and verified, flags triaged to zero or
 explicitly accepted, published to the user's private Notion.
