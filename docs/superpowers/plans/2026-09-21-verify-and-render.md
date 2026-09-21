@@ -54,16 +54,16 @@ Two deterministic stages behind the existing `parfum` CLI:
   4. `OUT_OF_ORDER`: Sentence or Sektion IDs do not follow strict monotonic order.
   5. `DUPLICATE_ID`: Satz ID appears more than once.
 
-- [ ] **Step 1: Write failing mutation tests**
+- [x] **Step 1: Write failing mutation tests**
   Write tests in `tests/test_verify.py` verifying clean input passes with 0 flags, and each mutation defect class is caught.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   Run: `uv run pytest tests/test_verify.py -v`
 
-- [ ] **Step 3: Implement `src/parfum/verify.py`**
+- [x] **Step 3: Implement `src/parfum/verify.py`**
   Implement the defect detectors, `VerificationResult`, and `write_flags`.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
   Run: `uv run pytest tests/test_verify.py -v`
 
 ---
@@ -74,13 +74,13 @@ Two deterministic stages behind the existing `parfum` CLI:
 - Modify: `src/parfum/cli.py`
 - Modify: `tests/test_cli.py`
 
-- [ ] **Step 1: Write failing CLI test for `verify`**
+- [x] **Step 1: Write failing CLI test for `verify`**
   Add test in `tests/test_cli.py` testing `--scope`, clean exit code (0), and defect exit code (1).
 
-- [ ] **Step 2: Implement CLI subparser and handler**
+- [x] **Step 2: Implement CLI subparser and handler**
   Add `verify` subparser with `--scope` and dispatch to `_verify`.
 
-- [ ] **Step 3: Verify CLI tests pass**
+- [x] **Step 3: Verify CLI tests pass**
   Run: `uv run pytest tests/test_cli.py -k verify -v`
 
 ---
@@ -106,16 +106,16 @@ Two deterministic stages behind the existing `parfum` CLI:
   - If target file exists and hash differs from manifest: write to `<sektion_id>.incoming.md`, flag conflict.
   - If hash matches or file missing: write file, update manifest.
 
-- [ ] **Step 1: Write snapshot and clobber protection tests**
+- [x] **Step 1: Write snapshot and clobber protection tests**
   Add tests in `tests/test_render.py` covering table format, pipe escaping, conflict detection on edited files, and resumption.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   Run: `uv run pytest tests/test_render.py -v`
 
-- [ ] **Step 3: Implement `src/parfum/render.py`**
+- [x] **Step 3: Implement `src/parfum/render.py`**
   Implement renderer, manifest management, and clobber protection.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
   Run: `uv run pytest tests/test_render.py -v`
 
 ---
@@ -126,13 +126,13 @@ Two deterministic stages behind the existing `parfum` CLI:
 - Modify: `src/parfum/cli.py`
 - Modify: `tests/test_cli.py`
 
-- [ ] **Step 1: Write failing CLI test for `render`**
+- [x] **Step 1: Write failing CLI test for `render`**
   Add test in `tests/test_cli.py` testing `parfum render` with `--scope` and `--force`.
 
-- [ ] **Step 2: Implement CLI subparser and handler**
+- [x] **Step 2: Implement CLI subparser and handler**
   Add `render` subparser and dispatch in `src/parfum/cli.py`.
 
-- [ ] **Step 3: Verify CLI tests pass**
+- [x] **Step 3: Verify CLI tests pass**
   Run: `uv run pytest tests/test_cli.py -k render -v`
 
 ---
@@ -143,12 +143,12 @@ Two deterministic stages behind the existing `parfum` CLI:
 - Modify: `tests/test_pipeline_e2e.py`
 - Modify: `docs/superpowers/specs/2026-09-15-parfum-interlinear-design.md`
 
-- [ ] **Step 1: Add E2E test from primed cache to rendered markdown**
+- [x] **Step 1: Add E2E test from primed cache to rendered markdown**
   Extend `tests/test_pipeline_e2e.py` to verify that after translation, running `verify` produces 0 flags and `render` produces valid markdown files with matching manifest.
 
-- [ ] **Step 2: Run full test suite**
+- [x] **Step 2: Run full test suite**
   Run: `uv run pytest`
   Run: `uv run parfum check`
 
-- [ ] **Step 3: Update spec §8 table and commit**
+- [x] **Step 3: Update spec §8 table and commit**
   Update stages 5 and 6 in §8 table of the design spec.
