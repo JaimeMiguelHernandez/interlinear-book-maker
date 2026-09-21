@@ -9,6 +9,8 @@ from parfum.deepl import MODEL_TYPE, Client, Translation
 from parfum.extract import normalize
 from parfum.glossary import Entry
 from parfum.model import Book, Kapitel, Satz, Sektion, Teil
+from parfum.notion import NotionClient
+from parfum.publish import PublishedLedger, publish
 from parfum.render import render_book
 from parfum.segment import build_book, pack
 from parfum.translate import run, write_translated
@@ -16,6 +18,16 @@ from parfum.verify import verify, write_flags
 
 ENTRIES = [Entry("Gestank", "stench", "w: stench")]
 INSTR = ["Keep register formal."]
+
+
+class FakeResponse:
+    def __init__(self, data: dict):
+        self.status_code = 200
+        self._data = data
+        self.text = json.dumps(data)
+
+    def json(self):
+        return self._data
 
 
 def _book():
@@ -67,8 +79,32 @@ def test_a_primed_cache_runs_the_stage_without_touching_the_network(tmp_path):
     assert "| *Der Gestank.* | EN:Der Gestank. |" in md_file.read_text(encoding="utf-8")
     assert (out_dir / "manifest.json").exists()
 
+    # Stage 7 publishing
+    published_calls = 0
 
-def test_full_pipeline_stages_1_to_6_e2e(tmp_path: Path):
+    def notion_transport(method, url, **kwargs):
+        nonlocal published_calls
+        published_calls += 1
+        return FakeResponse({"id": f"page-{published_calls}"})
+
+    notion_client = NotionClient("key", "parent", notion_transport)
+    ledger_path = out_dir / "published.json"
+    ledger = PublishedLedger.load(ledger_path)
+    p_res = publish(book, payload, notion_client, ledger, ledger_path=ledger_path)
+    assert p_res.published == 1
+    assert p_res.skipped == 0
+    assert ledger_path.exists()
+
+    # Re-run: 0 calls
+    published_calls = 0
+    ledger2 = PublishedLedger.load(ledger_path)
+    p_res2 = publish(book, payload, notion_client, ledger2, ledger_path=ledger_path)
+    assert p_res2.published == 0
+    assert p_res2.skipped == 1
+    assert published_calls == 0
+
+
+def test_full_pipeline_stages_1_to_7_e2e(tmp_path: Path):
     fixture = Path(__file__).parent / "fixtures" / "mini_book.txt"
     norm = normalize(fixture.read_text(encoding="utf-8"))
     book = build_book(norm.text)
@@ -108,6 +144,38 @@ def test_full_pipeline_stages_1_to_6_e2e(tmp_path: Path):
         assert f"# {sektion.id}" in content
         assert "| Deutsch | English |" in content
 
+    # Stage 7: Publish
+    published_calls = 0
+
+    def notion_transport(method, url, **kwargs):
+        nonlocal published_calls
+        published_calls += 1
+        return FakeResponse({"id": f"notion-page-{published_calls}"})
+
+    notion_client = NotionClient("fake-key", "fake-parent", notion_transport)
+    ledger_path = output_dir / "published.json"
+    ledger = PublishedLedger.load(ledger_path)
+    p_summary = publish(book, translated, notion_client, ledger, ledger_path=ledger_path)
+
+    assert p_summary.published == sektion_count
+    assert p_summary.skipped == 0
+    assert published_calls == sektion_count
+    assert ledger_path.exists()
+
+    ledger_data = json.loads(ledger_path.read_text(encoding="utf-8"))
+    assert len(ledger_data) == sektion_count
+    for sektion in book.iter_sektionen():
+        assert sektion.id in ledger_data
+        assert ledger_data[sektion.id]["page_id"].startswith("notion-page-")
+
+    # Idempotent re-run: 0 calls, all skipped
+    published_calls = 0
+    ledger2 = PublishedLedger.load(ledger_path)
+    p_summary2 = publish(book, translated, notion_client, ledger2, ledger_path=ledger_path)
+    assert p_summary2.published == 0
+    assert p_summary2.skipped == sektion_count
+    assert published_calls == 0
+
 
 @pytest.mark.skipif(not (os.environ.get("PARFUM_LIVE") and os.environ.get("DEEPL_AUTH_KEY")),
                     reason="opt-in: set PARFUM_LIVE=1 and DEEPL_AUTH_KEY")
@@ -122,3 +190,18 @@ def test_live_smoke_translates_a_couple_hundred_characters():
     assert len(results) == 1
     assert results[0].billed_characters > 0
     assert results[0].model_type_used                 # records what DeepL actually used
+
+
+@pytest.mark.skipif(not (os.environ.get("PARFUM_LIVE") and os.environ.get("NOTION_API_KEY") and os.environ.get("NOTION_PARENT_ID")),
+                    reason="opt-in: set PARFUM_LIVE=1, NOTION_API_KEY, and NOTION_PARENT_ID")
+def test_live_smoke_notion_verifies_parent_page():
+    import httpx
+
+    http = httpx.Client(timeout=60.0)
+    client = NotionClient(
+        os.environ["NOTION_API_KEY"],
+        os.environ["NOTION_PARENT_ID"],
+        lambda m, u, **kw: http.request(m, u, **kw),
+    )
+    assert client.verify_parent() is True
+

@@ -353,7 +353,7 @@ actually breaks.
 | 4 `translate` | Row parity structural; billed characters within ±5% of pre-flight estimate | Implemented & verified against primed cache (live translation deferred pending `DEEPL_AUTH_KEY`) |
 | 5 `verify` | Every injected defect class caught; `flags.json` produced | Done |
 | 6 `render` | Snapshot match; manifest written; nothing clobbered | Done |
-| 7 `publish` | Page count matches Sektion count; re-running changes nothing | Pending |
+| 7 `publish` | Page count matches Sektion count; re-running changes nothing | Done (live publish deferred pending `NOTION_API_KEY`) |
 
 **Project done:** all 51 Kapitel rendered and verified, flags triaged to zero or
 explicitly accepted, published to the user's private Notion.
