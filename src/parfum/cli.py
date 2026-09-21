@@ -278,6 +278,59 @@ def _render(args) -> int:
     return 0
 
 
+def _notion_client(api_key: str, parent_id: str):
+    import httpx
+    from parfum.notion import NotionClient
+
+    client = httpx.Client(timeout=60.0)
+    return NotionClient(
+        api_key,
+        parent_id,
+        lambda method, url, **kw: client.request(method, url, **kw),
+    )
+
+
+def _publish(args) -> int:
+    from parfum.publish import PublishedLedger, publish
+
+    translated_path = paths.INTERIM / "translated.json"
+    if not translated_path.is_file():
+        print(f"ERROR: {translated_path} does not exist. Run 'parfum translate' first.", file=sys.stderr)
+        return 1
+
+    api_key = os.environ.get("NOTION_API_KEY")
+    parent_id = os.environ.get("NOTION_PARENT_ID")
+    if not api_key:
+        print("ERROR: NOTION_API_KEY is not set", file=sys.stderr)
+        return 1
+    if not parent_id:
+        print("ERROR: NOTION_PARENT_ID is not set", file=sys.stderr)
+        return 1
+
+    book = _read_book()
+    with open(translated_path, encoding="utf-8") as handle:
+        translated = json.load(handle)
+
+    ledger_path = paths.OUTPUT / "published.json"
+    ledger = PublishedLedger.load(ledger_path)
+    client = _notion_client(api_key, parent_id)
+
+    summary = publish(
+        book,
+        translated,
+        client,
+        ledger,
+        scope=args.scope,
+        force=args.force,
+        dry_run=args.dry_run,
+        ledger_path=ledger_path,
+    )
+
+    print(f"published: {summary.published}  updated: {summary.updated}  "
+          f"skipped: {summary.skipped}  total: {summary.total}")
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="parfum")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -303,6 +356,10 @@ def main(argv=None) -> int:
     rn = sub.add_parser("render", help="book.json + translated.json -> data/output/ markdown")
     rn.add_argument("--scope", default=None)
     rn.add_argument("--force", action="store_true")
+    pb = sub.add_parser("publish", help="book.json + translated.json -> Notion child pages")
+    pb.add_argument("--scope", default=None)
+    pb.add_argument("--force", action="store_true")
+    pb.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
     return {
         "extract": _extract,
@@ -316,6 +373,7 @@ def main(argv=None) -> int:
         "translate": _translate,
         "verify": _verify,
         "render": _render,
+        "publish": _publish,
     }[args.command](args)
 
 
