@@ -15,7 +15,7 @@ MODEL = "de_core_news_lg"
 
 @functools.lru_cache(maxsize=1)
 def load_nlp():
-    return spacy.load(MODEL, exclude=["ner", "lemmatizer"])
+    return spacy.load(MODEL, exclude=["ner"])
 
 
 def split_sentences(paragraph: str) -> list[str]:

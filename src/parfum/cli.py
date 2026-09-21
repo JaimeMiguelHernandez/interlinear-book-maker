@@ -4,12 +4,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from parfum import paths
+from parfum.deepl import Client as DeepLClient
 from parfum.extract import normalize, run_pdftotext
 from parfum.model import Book
 from parfum.segment import HI, LO, build_book, reconstruct
+
+
+def _read_book() -> Book:
+    return Book.from_dict(
+        json.loads((paths.INTERIM / "book.json").read_text(encoding="utf-8"))
+    )
 
 
 def _squash(text: str) -> str:
@@ -59,9 +67,7 @@ def _check(_args) -> int:
     from parfum.structure import detect
 
     text = (paths.INTERIM / "raw.txt").read_text(encoding="utf-8")
-    book = Book.from_dict(
-        json.loads((paths.INTERIM / "book.json").read_text(encoding="utf-8"))
-    )
+    book = _read_book()
 
     source = _squash("".join(
         paragraph
@@ -94,14 +100,167 @@ def _check(_args) -> int:
     return 1 if problems else 0
 
 
+def _senses(args) -> int:
+    from parfum.candidates import count_lemmas, recurring
+    from parfum.sentences import load_nlp
+    from parfum.wiktextract import build_subset, save_subset
+
+    book = _read_book()
+    wanted = {c.lemma for c in recurring(count_lemmas(book, load_nlp()), args.min_count)}
+    with open(args.jsonl, encoding="utf-8") as handle:
+        senses = build_subset(handle, wanted)
+    save_subset(senses, paths.REFERENCE / "senses.json")
+    print(f"wanted: {len(wanted)}  found: {len(senses)}")
+    return 0
+
+
+def _glossary_candidates(args) -> int:
+    """Generate glossary candidates from book, filtered by frequency and sense count."""
+    from parfum.candidates import count_lemmas, monosemous, recurring
+    from parfum.sentences import load_nlp
+    from parfum.wiktextract import load_subset
+
+    book = _read_book()
+    senses = load_subset(paths.REFERENCE / "senses.json")
+
+    counted = count_lemmas(book, load_nlp())
+    kept = monosemous(recurring(counted, args.min_count), senses)
+
+    rows = ["lemma\tpos\tcount\tgloss"] + [
+        f"{c.lemma}\t{c.pos}\t{c.count}\t{senses[c.lemma][0].gloss}" for c in kept
+    ]
+    (paths.INTERIM / "candidates.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+    print(f"lemmas: {len(counted)}  recurring: {len(recurring(counted, args.min_count))}  "
+          f"candidates: {len(kept)}")
+    return 0
+
+
+def _client():
+    import httpx
+
+    auth_key = os.environ.get("DEEPL_AUTH_KEY")
+    if not auth_key:
+        raise SystemExit("DEEPL_AUTH_KEY is not set")
+    client = httpx.Client(timeout=60.0)
+    return DeepLClient(auth_key, lambda method, url, **kw: client.request(method, url, **kw))
+
+
+def _load_glossary():
+    from parfum.glossary import parse_tsv
+
+    path = paths.CONFIG / "glossary.tsv"
+    return parse_tsv(path.read_text(encoding="utf-8")) if path.is_file() else []
+
+
+def _glossary_validate(_args) -> int:
+    from parfum.wiktextract import load_subset
+
+    entries = _load_glossary()
+    senses = load_subset(paths.REFERENCE / "senses.json")
+    problems = []
+    for entry in entries:
+        found = senses.get(entry.source, [])
+        if len(found) != 1:
+            problems.append(f"{entry.source}: {len(found)} senses, expected exactly 1")
+        elif not entry.evidence.strip():
+            problems.append(f"{entry.source}: no dictionary evidence")
+    print(f"entries: {len(entries)}  problems: {len(problems)}")
+    for problem in problems:
+        print(f"PROBLEM: {problem}", file=sys.stderr)
+    return 1 if problems else 0
+
+
+def _glossary_upload(_args) -> int:
+    glossary_id = _client().create_glossary("parfum", _load_glossary())
+    (paths.INTERIM / "glossary_id.txt").write_text(glossary_id, encoding="utf-8")
+    print(f"glossary_id: {glossary_id}")
+    return 0
+
+
+def _glossary_ab(args) -> int:
+    from parfum.ab import compare, report
+    from parfum.deepl import load_instructions
+
+    book = _read_book()
+    diffs = compare(book, _load_glossary(),
+                    load_instructions(paths.CONFIG / "deepl_instructions.json"),
+                    _client(), scope=args.scope,
+                    glossary_id=(paths.INTERIM / "glossary_id.txt").read_text().strip(),
+                    cache_root=paths.DEEPL_CACHE / "ab")
+    print(report(diffs))
+    return 0
+
+
+def _translate(args) -> int:
+    from parfum.cache import Cache
+    from parfum.deepl import MODEL_TYPE, load_instructions, preflight
+    from parfum.cache import key as cache_key
+    from parfum.translate import run, write_translated
+
+    book = _read_book()
+    entries = _load_glossary()
+    instructions = load_instructions(paths.CONFIG / "deepl_instructions.json")
+    cache = Cache(paths.DEEPL_CACHE)
+    client = _client()
+
+    saetze = [s for s in book.iter_saetze()
+              if args.scope is None or s.id.startswith(args.scope)]
+    pending = [s.text for s in saetze
+               if args.force or cache.get(cache_key(s.text, entries, MODEL_TYPE, instructions)) is None]
+    check = preflight(pending, client.usage())
+    print(f"pending sentences: {check.pending_sentences}  "
+          f"pending characters: {check.pending_characters}  "
+          f"remaining: {check.remaining}  fits: {check.fits}")
+    if args.dry_run:
+        return 0
+    if not check.fits:
+        return 1
+
+    glossary_path = paths.INTERIM / "glossary_id.txt"
+    result = run(book, entries, instructions, cache, client,
+                 glossary_path.read_text().strip() if glossary_path.is_file() else None,
+                 scope=args.scope, force=args.force)
+    write_translated(result, paths.INTERIM / "translated.json")
+    print(f"cache: {result.from_cache}  api: {result.from_api}  billed: {result.billed}")
+    if result.stopped_at:
+        print(f"STOPPED: {result.stopped_at}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="parfum")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("extract", help="PDF -> raw.txt + pagemap.json")
     sub.add_parser("segment", help="raw.txt -> book.json")
     sub.add_parser("check", help="verify book.json against raw.txt")
+    se = sub.add_parser("senses", help="kaikki JSONL -> data/reference/senses.json")
+    se.add_argument("--jsonl", required=True)
+    se.add_argument("--min-count", type=int, default=8)
+    cand = sub.add_parser("glossary-candidates",
+                          help="book.json -> candidates.tsv for curation")
+    cand.add_argument("--min-count", type=int, default=8)
+    sub.add_parser("glossary-validate", help="check config/glossary.tsv")
+    sub.add_parser("glossary-upload", help="create the DeepL glossary")
+    ab = sub.add_parser("glossary-ab", help="translate a sample with and without")
+    ab.add_argument("--scope", default="T1.K01")
+    tr = sub.add_parser("translate", help="book.json -> translated.json")
+    tr.add_argument("--scope", default=None)
+    tr.add_argument("--force", action="store_true")
+    tr.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
-    return {"extract": _extract, "segment": _segment, "check": _check}[args.command](args)
+    return {
+        "extract": _extract,
+        "segment": _segment,
+        "check": _check,
+        "senses": _senses,
+        "glossary-candidates": _glossary_candidates,
+        "glossary-validate": _glossary_validate,
+        "glossary-upload": _glossary_upload,
+        "glossary-ab": _glossary_ab,
+        "translate": _translate,
+    }[args.command](args)
 
 
 if __name__ == "__main__":
