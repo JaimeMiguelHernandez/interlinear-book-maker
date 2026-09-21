@@ -3,7 +3,7 @@ import json
 import pytest
 
 from parfum.cache import Cache, key
-from parfum.deepl import QuotaExceeded, Translation, Usage
+from parfum.deepl import MODEL_TYPE, QuotaExceeded, Translation, Usage
 from parfum.glossary import Entry
 from parfum.model import Book, Kapitel, Satz, Sektion, Teil
 from parfum.translate import context_for, run, write_translated
@@ -24,6 +24,13 @@ def _book():
                 Satz("T1.K02.S01.s001", "Ein anderer Satz."),
             ])]),
     ])])
+
+
+def _big_book(n=51):
+    saetze = [Satz(f"T1.K01.S01.s{i:03d}", f"Satz Nummer {i}.") for i in range(n)]
+    return Book(teile=[Teil(id="T1", number=1, kapitel=[
+        Kapitel(id="T1.K01", number=1, sektionen=[
+            Sektion(id="T1.K01.S01", saetze=saetze)])])])
 
 
 class FakeClient:
@@ -69,6 +76,18 @@ def test_quota_exhaustion_keeps_completed_sentences_and_reports_where_it_stopped
     result = run(_book(), ENTRIES, INSTR, cache, client, "gl-1")
     assert result.stopped_at is not None
     assert result.translated == {}
+
+
+def test_quota_exhaustion_mid_run_keeps_earlier_batches_cached(tmp_path):
+    cache = Cache(tmp_path)
+    client = FakeClient(fail_after=1)
+    book = _big_book()
+    result = run(book, ENTRIES, INSTR, cache, client, "gl-1")
+    assert result.stopped_at is not None
+    assert len(result.translated) == 50
+    assert result.translated["T1.K01.S01.s000"] == "EN:Satz Nummer 0."
+    first_key = key("Satz Nummer 0.", ENTRIES, MODEL_TYPE, INSTR)
+    assert cache.get(first_key) is not None
 
 
 def test_preflight_refuses_a_run_that_cannot_fit(tmp_path):
