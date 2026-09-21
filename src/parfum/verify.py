@@ -164,3 +164,4 @@ def write_flags(result: VerificationResult, path: Path) -> None:
         tmp.write("\n")
         tmp_name = tmp.name
     os.replace(tmp_name, path)
+

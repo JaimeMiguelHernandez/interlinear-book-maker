@@ -134,3 +134,4 @@ def test_render_book_clobber_protection_on_hand_edited_file(tmp_path: Path):
     incoming = tmp_path / "T1" / "T1.K01.S01.incoming.md"
     assert incoming.exists()
     assert "<!-- User hand note -->" not in incoming.read_text(encoding="utf-8")
+

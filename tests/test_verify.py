@@ -160,3 +160,4 @@ def test_write_flags_atomic(tmp_path: Path):
     assert len(data["flags"]) == 1
     assert data["flags"][0]["satz_id"] == "T1.K01.S01.s001"
     assert data["flags"][0]["defect_type"] == "dropped_row"
+

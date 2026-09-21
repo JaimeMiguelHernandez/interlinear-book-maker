@@ -142,3 +142,4 @@ def render_book(
 
     manifest.save(manifest_path)
     return summary
+
