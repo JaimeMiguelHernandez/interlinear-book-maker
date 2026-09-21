@@ -10,41 +10,53 @@ from parfum.wiktextract import Sense
 
 MIN_COUNT = 8
 
-# Closed-class tags carry no glossary value.
+# Closed-class tags carry no glossary value; PROPN is a name, not a term.
 SKIP_POS = {"ADP", "AUX", "CCONJ", "DET", "PART", "PRON", "PUNCT",
-            "SCONJ", "SPACE", "NUM", "X"}
+            "SCONJ", "SPACE", "NUM", "PROPN", "X"}
 
 
 @dataclass(frozen=True)
 class Candidate:
     lemma: str
-    pos: str
+    pos: str  # Most common (mode) POS across all occurrences of this lemma
     count: int
 
 
 def count_lemmas(book: Book, nlp) -> list[Candidate]:
-    # Count by (lemma, pos) first
+    # Count all alpha, non-closed-class tokens by (lemma, pos) — collecting PROPN.
+    # Filtering by SKIP_POS happens post-aggregation to handle cases where spaCy
+    # mis-tags inflected forms with different POS tags (e.g., "Gerber" as PROPN
+    # vs NOUN). Aggregation ensures the true lemma count isn't underestimated,
+    # then we filter based on the lemma's most common POS.
     pos_counts: Counter[tuple[str, str]] = Counter()
     texts = [s.text for s in book.iter_saetze()]
     for doc in nlp.pipe(texts, batch_size=64):
         for token in doc:
-            if token.pos_ in SKIP_POS or not token.is_alpha:
+            if not token.is_alpha:
                 continue
+            # Collect all tokens, including SKIP_POS; filter after aggregation
             pos_counts[(token.lemma_, token.pos_)] += 1
 
-    # Aggregate by lemma only (taking the primary POS)
+    # Aggregate by lemma: sum counts, determine most common POS
     lemma_totals: dict[str, int] = {}
-    lemma_pos: dict[str, str] = {}
+    lemma_pos_counts: dict[str, Counter[str]] = {}
     for (lemma, pos), count in pos_counts.items():
         if lemma not in lemma_totals:
             lemma_totals[lemma] = 0
-            lemma_pos[lemma] = pos
+            lemma_pos_counts[lemma] = Counter()
         lemma_totals[lemma] += count
+        lemma_pos_counts[lemma][pos] += count
+
+    # Filter: keep only lemmas whose most common POS is not in SKIP_POS
+    candidates = []
+    for lemma, total_count in lemma_totals.items():
+        mode_pos = lemma_pos_counts[lemma].most_common(1)[0][0]
+        if mode_pos not in SKIP_POS:
+            candidates.append(Candidate(lemma, mode_pos, total_count))
 
     # Sort by count descending
-    sorted_lemmas = sorted(lemma_totals.items(), key=lambda x: x[1], reverse=True)
-    return [Candidate(lemma, lemma_pos[lemma], count)
-            for lemma, count in sorted_lemmas]
+    candidates.sort(key=lambda c: c.count, reverse=True)
+    return candidates
 
 
 def recurring(cands: list[Candidate], min_count: int = MIN_COUNT) -> list[Candidate]:

@@ -39,3 +39,25 @@ def test_monosemous_drops_polysemous_and_unknown_lemmas():
     senses = {"Gerber": [Sense("noun", "tanner")],
               "Zug": [Sense("noun", "train"), Sense("noun", "draught")]}
     assert [c.lemma for c in monosemous(cands, senses)] == ["Gerber"]
+
+
+def test_count_lemmas_excludes_proper_nouns_by_mode_pos():
+    # Test that a proper noun (consistently tagged PROPN) is excluded from
+    # count_lemmas output even if it meets the count threshold. Use a name
+    # consistently, not just sentence-initial, to ensure PROPN tagging.
+    book = _book(
+        "Baldini riecht den Duft.",
+        "Baldini kauft den Duft.",
+        "Baldini hat den Duft.",
+        "Baldini trägt den Duft.",
+        "Baldini zeigt den Duft.",
+        "Baldini verkauft den Duft.",
+        "Baldini hält den Duft.",
+        "Baldini liebt den Duft.",
+        "Baldini braucht den Duft.",
+    )
+    result = count_lemmas(book, load_nlp())
+    # Baldini should appear at least 9 times but should be filtered out
+    # because its mode POS is PROPN (in SKIP_POS)
+    baldini_cands = [c for c in result if c.lemma == "Baldini"]
+    assert len(baldini_cands) == 0, "Proper noun should be excluded by mode POS"
