@@ -3,6 +3,9 @@
 **Date:** 2026-09-15
 **Source text:** *Das Parfum: Die Geschichte eines Mörders*, Patrick Süskind
 **Status:** Design approved in brainstorming; awaiting spec review
+**Revised 2026-09-21:** vocabulary bolding removed entirely (§11.1). That took
+the CEFR gate, the work-order stage, and the alignment agent with it — ten
+stages became seven, and two agent stages became one.
 
 ---
 
@@ -12,14 +15,13 @@ Build a complete, sentence-aligned German→English study edition of *Das Parfum
 personal language learning. Every sentence of the book gets a row. Nothing is
 summarized, abridged, or skipped.
 
-Each row pairs the German sentence with its English translation. B2- and
-C1-level vocabulary is bolded on **both** sides so the eye can pair them,
-including multi-word units (`erweist sich … als` ↔ `proves to be`).
+Each row pairs the German sentence with its English translation. Nothing is
+highlighted: the pairing itself is the teaching device.
 
-The output format matches the user's existing Notion study edition of Stefan
-Zweig's *Rausch der Verwandlung*: a two-column table headed `Deutsch | English`,
-one row per German sentence, German cells italicized, key vocabulary bolded on
-both sides.
+The output format follows the user's existing Notion study edition of Stefan
+Zweig's *Rausch der Verwandlung* — a two-column table headed `Deutsch | English`,
+one row per German sentence, German cells italicized — **without** that
+edition's bolded key vocabulary.
 
 ### Copyright
 
@@ -93,16 +95,14 @@ book-editor/
 │   ├── hooks/post-tool-use.sh
 │   ├── agents/verifier.md
 │   └── skills/
-│       ├── curate-glossary/      # stage 3 agent
-│       ├── align-and-verify/     # stage 7 agent
-│       └── publish-notion/       # stage 10
+│       ├── curate-glossary/      # stage 3 agent — the only one
+│       └── publish-notion/       # stage 7
 ├── src/parfum/                   # one module per stage
 ├── data/
 │   ├── raw/                      # the PDF
-│   ├── reference/                # Goethe A1–B1, DWDS frequency, Wiktextract subset
-│   ├── interim/                  # book.json, cefr.json, translated.json
+│   ├── reference/                # Wiktextract subset
+│   ├── interim/                  # book.json, translated.json
 │   ├── cache/deepl/              # content-addressed translation cache
-│   ├── workorders/               # stage 6 out, stage 7 in/out
 │   └── output/                   # markdown ← SOURCE OF TRUTH
 ├── docs/superpowers/specs/
 ├── tests/
@@ -114,33 +114,39 @@ book-editor/
 `data/output/` is the source of truth. Notion is a publication target, not
 storage. Hand corrections made to the markdown survive re-runs (§6.3).
 
-### 3.2 The ten stages
+### 3.2 The seven stages
 
-Eight deterministic, two agent-driven. Each reads files and writes files; the
+Six deterministic, one agent-driven. Each reads files and writes files; the
 file contract is the only coupling between stages.
 
 | # | Stage | Kind | In → Out |
 |---|---|---|---|
 | 1 | `extract` | deterministic | PDF → `raw.txt` + page map |
 | 2 | `segment` | deterministic | `raw.txt` → `book.json` |
-| 3 | `glossary` | **agent** | candidates → curated TSV → DeepL `glossary_id` |
-| 4 | `cefr` | deterministic | `book.json` + word lists → `cefr.json` |
-| 5 | `translate` | deterministic | `book.json` + glossary → DeepL → `translated.json` |
-| 6 | `workorders` | deterministic | → one JSON per Sektion |
-| 7 | `align` | **agent** | work order → bold spans + divergence flags |
-| 8 | `verify` | deterministic | → `flags.json` |
-| 9 | `render` | deterministic | → `data/output/…/sektion.md` |
-| 10 | `publish` | deterministic | → Notion |
+| 3 | `glossary` | **agent** | recurring terms → curated TSV → DeepL `glossary_id` |
+| 4 | `translate` | deterministic | `book.json` + glossary → DeepL → `translated.json` |
+| 5 | `verify` | deterministic | → `flags.json` |
+| 6 | `render` | deterministic | → `data/output/…/sektion.md` |
+| 7 | `publish` | deterministic | → Notion |
+
+**No stage reads the book sentence by sentence through a model.** That was
+the `align` stage, and it was the pipeline's dominant cost: ~70–95 agent work
+orders covering all 4,118 sentences. It existed only to place bold spans, so
+dropping bold dropped it, and `workorders` with it — a work order had no other
+consumer. (Both were stages 6 and 7 of the original ten; the numbering below is
+the revised one.)
 
 ### 3.3 Division of labour
 
-**DeepL translates. The agent never writes English.** This is a hard constraint,
-enforced structurally rather than by instruction (§5.3).
+**DeepL translates.** No agent writes English prose at any stage. The one place
+an agent emits English at all is the glossary TSV — single target terms, each
+carrying dictionary evidence, versioned in git and A/B validated before use
+(§5.1). That bound is now the whole of the constraint; there is no longer an
+agent handling sentences that a schema has to fence in.
 
-**Dictionaries gate and verify. They never write text.** DWDS supplies the
-German-side lemma, sense, and register data and the frequency signal.
-Wiktextract (offline, 352,527 German word forms) supplies DE→EN sense checking.
-PONS fills gaps. None of them produce prose that reaches the output.
+**Dictionaries verify. They never write text.** Wiktextract (offline, 352,527
+German word forms) supplies DE→EN sense checking for glossary candidates. PONS
+fills gaps. Neither produces prose that reaches the output.
 
 ---
 
@@ -163,58 +169,25 @@ Sentence splitting uses spaCy `de_core_news_lg`, which handles the German cases
 a naive splitter fails on: ordinals (`am 31. Dezember`), abbreviations, and
 »guillemet« dialogue.
 
-### 4.2 `cefr.json` — qualifying vocabulary
+### 4.2 `translated.json` — the English side
 
-Per sentence, a list of qualifying items, each recording:
-
-- the lemma
-- the character span in the German sentence
-- the evidence that admitted it (which list it was absent from, its frequency
-  band)
-
-### 4.3 Work orders and agent results
-
-A work order is one Sektion: for each sentence, the German text, DeepL's
-English, and the candidate spans from `cefr.json`.
-
-An agent result contains **character offsets only**. There is no string field
-anywhere in the schema capable of holding English text.
+Keyed by the same Satz IDs as `book.json`, one English string each. Row parity
+is structural rather than checked: DeepL is called with `text` as an array and
+`split_sentences: "0"`, so one input element yields exactly one output element
+(§6.2).
 
 ---
 
-## 5. The Two Hard Components
+## 5. The Hard Component
 
-### 5.1 The CEFR gate
-
-No official B2/C1 word list exists. DWDS publishes Goethe-Zertifikat lists for
-**A1, A2, and B1 only**. So B2/C1 is defined by subtraction plus a ceiling:
-
-1. Lemmatize with spaCy.
-2. Drop closed-class words and proper nouns.
-3. Reject anything present in the Goethe A1, A2, or B1 lists. *(Too easy —
-   explicitly excluded by the user.)*
-4. Reject anything below a DWDS frequency floor. *(Too rare — C2 and archaic
-   vocabulary, explicitly excluded.)*
-
-Separable verbs are reunited with their particle via the dependency parse before
-lookup, so `stellte … fest` is looked up as `feststellen`.
-
-**Nonce compounds are rejected.** Süskind coins compounds freely; they fall
-below the frequency floor automatically. They are constructions to parse, not
-vocabulary to memorize. This is tunable after reviewing chapter 1.
-
-**The frequency floor is fitted, not guessed.** The user's existing Zweig
-edition contains ~75 pages of their own bold/don't-bold decisions. Those are
-extracted into labelled (lemma, bolded?) pairs, the floor is fitted on a
-training split, and precision and recall are reported on a held-out split the
-fitting never saw.
-
-### 5.2 Glossary curation (stage 3, agent)
+### 5.1 Glossary curation (stage 3, agent)
 
 The glossary constrains DeepL's word choice for recurring terms. A bad entry
 corrupts every sentence containing that term, so the blast radius is bounded by
 construction:
 
+- **Candidates are recurring terms in `book.json`** — lemmas above an occurrence
+  count, computed from the book itself. No external word list is involved.
 - A **deterministic monosemous pre-filter** runs first. Polysemous lemmas never
   reach the agent.
 - Every proposed entry must carry dictionary evidence.
@@ -222,36 +195,20 @@ construction:
   the glossary, compared.
 - The TSV is versioned in git. Every change is reviewable and revertible.
 
-### 5.3 Alignment (stage 7, agent)
+This is the only stage where a model's output reaches the reader, and it is a
+few hundred term pairs the user can read in one sitting — not 4,118 sentences of
+span decisions.
 
-The agent receives a work order and does three jobs:
+### 5.2 Verification (stage 5)
 
-1. **Align** each candidate span to its English counterpart span.
-2. **Identify multi-word units** the word-level gate cannot see —
-   `erweist sich … als` is one vocabulary item, not three.
-3. **Raise divergence flags** where DeepL's English appears to drift from the
-   German.
+Structural checks: row parity, non-empty cells, every Satz ID in `book.json`
+present exactly once, Sektionen in order.
 
-Rules:
-
-- Every candidate must be resolved: either aligned to an English span, or
-  explicitly rejected with a reason. Silence is a validation failure.
-- Where DeepL restructures a sentence and no single English span corresponds,
-  **the bold is dropped on both sides.** An unpaired bold teaches nothing.
-- The result schema accepts offsets only. The agent is structurally incapable of
-  emitting English prose, which is what makes "DeepL does the translating" a
-  guarantee rather than a hope.
-
-### 5.4 Verification (stage 8)
-
-Structural checks: row parity, non-empty cells, symmetric bold counts, spans in
-bounds and non-overlapping.
-
-Semantic checks: no bolded lemma the CEFR gate would reject; every bolded
-English span matching a Wiktextract sense for its German counterpart, with PONS
-consulted for gaps.
-
-Divergence flags are queued for review rather than blocking the build.
+There are no semantic checks. The previous design checked bolded English spans
+against Wiktextract senses; with nothing bolded, the English is DeepL's output
+end to end and the pipeline has no second opinion to offer on it. Translation
+quality is judged by the golden-set drift check (§7.2) and by the user reading
+the rendered output, not by a per-sentence verifier.
 
 ---
 
@@ -265,9 +222,9 @@ monthly free tier. Roughly 2% headroom.
 Three consequences:
 
 **Order of operations is a requirement, not a preference.** Chapter 1
-iteration, gate calibration, and glossary A/B validation happen first, while
-they cost a few thousand characters per pass. The full-book pass runs only once
-everything upstream is settled.
+iteration and glossary A/B validation happen first, while they cost a few
+thousand characters per pass. The full-book pass runs only once everything
+upstream is settled.
 
 **The book is split across months.** Teil 1–2 in one billing month, Teil 3–4 in
 the next. Free tier, no cost, no compromise on quality. A paid month removes
@@ -311,8 +268,8 @@ Content-addressed, so re-segmentation and renumbering cost zero quota — same
 sentences, same hashes, same hits. The per-sentence glossary fingerprint means
 changing one glossary entry invalidates only the sentences containing that term.
 
-Alignment results are keyed on sentence content hash as well as ID, so stage 7's
-work also survives renumbering. Only genuinely changed sentences are re-aligned.
+The cache is now the only expensive artifact worth preserving across runs.
+Everything downstream of `translate` is deterministic and cheap to redo.
 
 ### 6.5 Output clobber protection
 
@@ -327,16 +284,19 @@ that tests it.
 ### 6.6 Resumption
 
 Every stage writes a completion manifest, skips finished work by default, and
-takes `--force` to redo. Resumption granularity is the sentence for stage 5 and
-the Sektion for stages 6–10. Any stage can be interrupted at any point;
+takes `--force` to redo. Resumption granularity is the sentence for stage 4 and
+the Sektion for stages 5–7. Any stage can be interrupted at any point;
 re-running the pipeline afterwards does only the work genuinely missing.
 
 ### 6.7 What stays manual
 
-Two things do not automate, and the design's job is to make them a short finite
-list rather than a hunt: divergence flags where the agent believes DeepL drifted,
-and rows where the user simply disagrees with the rendering. Both land in one
-review queue with direct links to the Sektion file and line.
+One thing does not automate: rows where the user disagrees with the rendering.
+They land in a review queue with direct links to the Sektion file and line.
+
+Divergence flags used to be the other entry here — stage 7's agent raising a
+hand where DeepL's English drifted from the German. Nothing raises that hand
+now. The golden-set drift check (§7.2) samples roughly three Sektionen rather
+than covering the book, which is the cost the user chose to stop paying.
 
 ---
 
@@ -354,41 +314,30 @@ Unit tests over fixtures. Two carry real weight:
 German traps: ordinals, abbreviations, guillemets, dialogue punctuation.
 
 **`verify`** — mutation tested. Take a known-good Sektion, inject each defect
-class in turn (unbalanced bold, out-of-bounds span, empty cell, an A1 word
-bolded), assert each is caught. A verifier that has never seen a failure is not
-verified.
+class in turn (a dropped row, an empty cell, a duplicated Satz ID, Sektionen out
+of order), assert each is caught. A verifier that has never seen a failure is
+not verified.
 
 `extract` gets a golden test on a short slice: known hyphen joins, umlaut
-checks, page-map boundaries. `workorders` and `render` get snapshot tests.
+checks, page-map boundaries. `render` gets snapshot tests.
 
-### 7.2 Agent stages
+### 7.2 The agent stage
 
 A model cannot be unit tested. Two things can:
 
-**The result-schema validator** is the safety property that keeps English out of
-the agent's output, so it is fuzzed hard — prose in offset fields, spans past
-the end, unresolved candidates, all rejected.
+**The glossary's guards** — the monosemous pre-filter, the dictionary-evidence
+requirement, and the A/B comparison — are each tested directly, since they are
+what bounds a bad entry's blast radius (§5.1).
 
-**A golden set** of roughly three hand-checked Sektionen is re-run periodically,
-reporting drift as a number rather than a pass/fail. Models move; a hard
-assertion there would only produce noise.
+**A golden set** of roughly three hand-checked Sektionen is re-translated
+periodically, reporting drift as a number rather than a pass/fail. Models and
+DeepL both move; a hard assertion there would only produce noise. With stage 7
+gone this sample is the pipeline's only drift signal, so it is worth running on
+a schedule rather than on demand.
 
-### 7.3 Calibration as acceptance test
+### 7.3 End-to-end
 
-Bold decisions extracted from the 33 Zweig Szenen form the labelled set. The
-frequency floor is fitted on a training split and scored on a held-out split.
-
-**Precision ≥ 0.85 on held-out data is the bar** before committing quota to the
-full book. A false bold is noise on every page; a miss is a word the reader
-probably half-knew.
-
-If the gate cannot reach that bar, that is a finding to report, not something to
-paper over. The gate would become agent-assisted rather than purely
-deterministic, and the decision returns to the user.
-
-### 7.4 End-to-end
-
-Kapitel 1 through all ten stages against a primed cache. This is the test that
+Kapitel 1 through all seven stages against a primed cache. This is the test that
 catches contract drift between stages, which is where a pipeline of this shape
 actually breaks.
 
@@ -401,13 +350,10 @@ actually breaks.
 | 1 `extract` | All page text accounted for; known hyphen joins correct; umlauts verified |
 | 2 `segment` | Concatenation invariant holds; trap cases pass; every Sektion 40–55 sentences, no paragraph split |
 | 3 `glossary` | Every entry monosemous with evidence; A/B on a fixed sample shows no regression |
-| 4 `cefr` | Held-out precision ≥ 0.85 against the Zweig labels |
-| 5 `translate` | Row parity structural; billed characters within ±5% of pre-flight estimate |
-| 6 `workorders` | One file per Sektion; every sentence present exactly once |
-| 7 `align` | Schema valid; every candidate resolved; drift vs golden set reported |
-| 8 `verify` | Every injected defect class caught; `flags.json` produced |
-| 9 `render` | Snapshot match; manifest written; nothing clobbered |
-| 10 `publish` | Page count matches Sektion count; re-running changes nothing |
+| 4 `translate` | Row parity structural; billed characters within ±5% of pre-flight estimate |
+| 5 `verify` | Every injected defect class caught; `flags.json` produced |
+| 6 `render` | Snapshot match; manifest written; nothing clobbered |
+| 7 `publish` | Page count matches Sektion count; re-running changes nothing |
 
 **Project done:** all 51 Kapitel rendered and verified, flags triaged to zero or
 explicitly accepted, published to the user's private Notion.
@@ -416,14 +362,19 @@ explicitly accepted, published to the user's private Notion.
 
 ## 9. Execution Model
 
-Only a Claude Code Pro subscription is available — no API key, no billing. The
-two agent stages therefore run as a headless `claude -p` loop driven by `run.sh`,
-with fresh-context subagents, one work order per Sektion (roughly 70–95 total),
-checkpointed and resumable across rate-limit windows.
+Only a Claude Code Pro subscription is available — no API key, no billing. This
+used to be the design's tightest constraint after quota: two agent stages, one
+of them 70–95 work orders that had to be checkpointed and resumed across
+rate-limit windows, driven by a headless `claude -p` loop in `run.sh`.
+
+With alignment gone, stage 3 is the only agent stage and it is a single bounded
+curation run over a few hundred candidate terms. **The `run.sh` loop is no
+longer required by the pipeline** — it survives only if the user wants it for
+unattended full-book renders, which are deterministic and could equally be a
+plain shell script.
 
 The file-contract boundary between stages means this is an execution detail, not
-an architectural one. If API access becomes available later, stages 3 and 7 can
-move to batch processing without any other stage changing.
+an architectural one.
 
 ---
 
@@ -432,11 +383,15 @@ move to batch processing without any other stage changing.
 | Dependency | Role | Access |
 |---|---|---|
 | DeepL API | Translation | Free tier, ~500k chars/month |
-| DWDS | Goethe A1/A2/B1 lists, frequency data | Public API |
-| Wiktextract / kaikki.org | DE→EN sense verification | Offline, ~1 GB JSONL, subset extracted |
+| Wiktextract / kaikki.org | DE→EN sense checking for glossary candidates | Offline, ~1 GB JSONL, subset extracted |
 | PONS | Gap-filling sense lookup | Official API, free tier |
-| spaCy `de_core_news_lg` | Sentence splitting, lemmatization, dependency parsing | Local model |
+| spaCy `de_core_news_lg` | Sentence splitting; lemmatization for glossary candidates | Local model |
 | Notion API | Publication target | Private workspace |
+
+**DWDS is no longer a dependency.** It supplied the Goethe A1/A2/B1 lists and
+the frequency signal, both of which existed only for the CEFR gate. No corpus
+frequency table is needed anywhere in the pipeline now; glossary candidates are
+counted in the book itself.
 
 LEO and Duden are **not** dependencies. They are manual reference only.
 
@@ -446,16 +401,22 @@ LEO and Duden are **not** dependencies. They are manual reference only.
 
 Decisions made during design that a reader would otherwise have to re-derive:
 
-1. **Bold B2 and C1 only.** A1–B1 is too easy, C2 and archaic too rare. Both
-   exclusions are explicit user requirements.
-2. **DeepL translates; the agent is the independent second opinion.** The user
-   reversed an initial recommendation against this. The design accommodates it
-   structurally (§5.3) rather than by convention.
+1. **No vocabulary bolding (2026-09-21, reverses the original decision).** The
+   edition was to bold B2/C1 vocabulary on both sides. The user dropped the
+   feature outright as too expensive in agent context: bolding required the
+   CEFR gate to choose the words and a per-sentence agent pass to pair them
+   across the two languages, and the pairing pass alone covered all 4,118
+   sentences in ~70–95 work orders. Dropping it removed three of the ten stages
+   and one of the two agent stages. The rows themselves — every sentence, German
+   beside English — are unchanged, and they were always the point.
+2. **DeepL translates; no agent offers a second opinion on it.** The user had
+   reversed an earlier recommendation to make the agent an independent checker;
+   decision 1 removed the stage that did it. Drift is now sampled (§7.2), not
+   covered.
 3. **Stage 3 has no human approval gate.** Replaced with an agent plus
-   safety-by-construction (§5.2).
+   safety-by-construction (§5.1).
 4. **Markdown files are the source of truth; Notion is a publish target.**
-5. **Sektion size 40–55 sentences, paragraph-aligned.** Sized to one unit of
-   agent work.
-6. **The frequency floor is fitted against the user's own prior bold decisions**
-   rather than chosen by intuition, which gives the hardest component a real
-   acceptance test.
+5. **Sektion size 40–55 sentences, paragraph-aligned.** Originally sized to one
+   unit of agent work. No stage does per-Sektion agent work any more, so the
+   band is now just a rendering and publishing unit — kept because
+   `book.json` and the Notion page layout are built on it.

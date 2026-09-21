@@ -19,8 +19,14 @@ functions over text; the CLI is the only I/O layer.
 
 **Spec:** `docs/superpowers/specs/2026-09-15-parfum-interlinear-design.md`
 
-This plan covers stages 1–2 of the ten-stage pipeline. Stages 3–10 are covered by
-three later plans (CEFR gate; Translation; Assembly).
+This plan covers stages 1–2 of the pipeline.
+
+> **Executed and merged 2026-09-20.** Kept as the record of what was built.
+> It was written against the ten-stage design; the spec was revised on
+> 2026-09-21 to seven stages when vocabulary bolding was dropped (spec §11.1).
+> Stages 1–2 are unaffected, except that `paths.WORKORDERS` no longer exists —
+> the stage that consumed it is gone. Steps below still show it; they are not
+> re-run.
 
 ---
 
@@ -1546,5 +1552,5 @@ git commit -m "feat: add the parfum CLI and verify the real corpus end to end"
 - `data/interim/book.json` exists with unique, well-formed sentence IDs.
 - The README records the measured sentence and Sektion baseline.
 
-Next plan: the CEFR gate (spec §5.1, §7.3), whose acceptance bar is precision
-≥ 0.85 against the user's own bolding decisions in the Zweig edition.
+Next plan: Translation (stages 3–4), whose binding constraint is DeepL quota
+(spec §6.1). The CEFR gate that was to follow this plan no longer exists.

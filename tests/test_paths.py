@@ -12,7 +12,6 @@ def test_data_dirs_live_under_root():
     assert paths.REFERENCE == paths.DATA / "reference"
     assert paths.INTERIM == paths.DATA / "interim"
     assert paths.CACHE == paths.DATA / "cache"
-    assert paths.WORKORDERS == paths.DATA / "workorders"
     assert paths.OUTPUT == paths.DATA / "output"
 
 

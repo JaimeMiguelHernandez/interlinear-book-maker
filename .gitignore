@@ -5,7 +5,6 @@ data/raw/
 # Generated and derived artifacts
 data/interim/
 data/cache/
-data/workorders/
 data/output/
 data/reference/
 
