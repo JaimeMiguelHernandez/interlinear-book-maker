@@ -160,3 +160,4 @@ def test_client_update_page_table():
     assert calls[0][0] == "GET" and calls[0][1].endswith("/blocks/page-999/children")
     assert calls[1][0] == "DELETE" and calls[1][1].endswith("/blocks/block-tbl-1")
     assert calls[2][0] == "PATCH" and calls[2][1].endswith("/blocks/page-999/children")
+

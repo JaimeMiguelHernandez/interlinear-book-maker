@@ -167,3 +167,4 @@ class NotionClient:
         """Check that the configured parent page exists and is accessible."""
         self._send("GET", f"/pages/{self.parent_id}")
         return True
+

@@ -118,3 +118,4 @@ def publish(
                     summary.published += 1
 
     return summary
+
