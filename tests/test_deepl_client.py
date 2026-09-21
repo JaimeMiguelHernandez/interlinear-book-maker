@@ -76,6 +76,17 @@ def test_rate_limit_is_retried_then_succeeds():
     assert len(transport.calls) == 2
 
 
+def test_a_5xx_status_outside_the_old_enumerated_set_is_retried_then_succeeds():
+    # 501 is not in the old hardcoded {429, 500, 502, 503, 504} set; spec §6.3 says
+    # 429 and any 5xx should retry, not just an enumerated subset.
+    transport = FakeTransport(FakeResponse(501, {}),
+                              FakeResponse(200, _recorded("translate_two.json")))
+    client = Client("key", transport, sleep=lambda _s: None)
+    assert len(client.translate(["a", "b"], context=None,
+                                glossary_id=None, instructions=[])) == 2
+    assert len(transport.calls) == 2
+
+
 def test_create_glossary_posts_two_column_tsv():
     transport = FakeTransport(FakeResponse(200, {"glossary_id": "gl-42"}))
     entries = [Entry("Gestank", "stench", "w: stench")]
@@ -95,3 +106,21 @@ def test_preflight_refuses_a_batch_that_will_not_fit():
 
 def test_preflight_accepts_a_batch_that_fits():
     assert preflight(["x" * 1000], Usage(120000, 500000)).fits is True
+
+
+def test_retries_exhausted_raises_transport_error():
+    from parfum.deepl import MAX_ATTEMPTS, TransportError
+    transport = FakeTransport(*(FakeResponse(503, {}) for _ in range(MAX_ATTEMPTS)))
+    client = Client("key", transport, sleep=lambda _s: None)
+    with pytest.raises(TransportError):
+        client.translate(["a"], context=None, glossary_id=None, instructions=[])
+    assert len(transport.calls) == MAX_ATTEMPTS
+
+
+def test_a_generic_4xx_is_not_retried():
+    from parfum.deepl import TransportError
+    transport = FakeTransport(FakeResponse(404, {}))
+    with pytest.raises(TransportError):
+        Client("key", transport).translate(["a"], context=None,
+                                           glossary_id=None, instructions=[])
+    assert len(transport.calls) == 1

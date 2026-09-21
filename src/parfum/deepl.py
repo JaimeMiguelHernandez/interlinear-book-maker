@@ -94,7 +94,12 @@ def parse_response(payload: dict) -> list[Translation]:
 
 BASE_URL = "https://api-free.deepl.com"
 MAX_ATTEMPTS = 5
-RETRY_STATUS = {429, 500, 502, 503, 504}
+RETRY_STATUS = {429, 500, 502, 503, 504}  # documentation only; _is_retryable covers the full 5xx range
+
+
+def _is_retryable(status_code: int) -> bool:
+    """429 and any 5xx get exponential backoff (spec §6.3) — a range, not an enumerated subset."""
+    return status_code == 429 or 500 <= status_code < 600
 
 
 class QuotaExceeded(RuntimeError):
@@ -144,7 +149,7 @@ class Client:
                                       headers=self._headers(), **kwargs)
             if response.status_code == 456:
                 raise QuotaExceeded("DeepL free-tier characters exhausted")
-            if response.status_code in RETRY_STATUS:
+            if _is_retryable(response.status_code):
                 if attempt == MAX_ATTEMPTS - 1:
                     break
                 self.sleep(2 ** attempt + random.random())
@@ -167,8 +172,8 @@ class Client:
     def create_glossary(self, name: str, entries: list[Entry]) -> str:
         data = {
             "name": name,
-            "source_lang": "DE",
-            "target_lang": "EN",
+            "source_lang": SOURCE_LANG,
+            "target_lang": "EN",  # glossary pair is base EN, distinct from translation's TARGET_LANG (EN-US)
             "entries": to_deepl_tsv(entries),
             "entries_format": "tsv",
         }
