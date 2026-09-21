@@ -178,3 +178,85 @@ def test_translate_force_dry_run_ignores_the_cache_in_its_preflight_count(
     assert cli.main(["translate", "--force", "--dry-run"]) == 0
     out = capsys.readouterr().out
     assert "pending sentences: 1" in out
+
+
+def test_verify_passes_when_valid(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
+        {"id": "T1.K01", "number": 1, "sektionen": [
+            {"id": "T1.K01.S01", "saetze": [
+                {"id": "T1.K01.S01.s001", "text": "Der Gestank."}]}]}]}]}
+    (tmp_path / "book.json").write_text(json.dumps(book), encoding="utf-8")
+    (tmp_path / "translated.json").write_text(
+        json.dumps({"T1.K01.S01.s001": "The stench."}), encoding="utf-8"
+    )
+
+    assert cli.main(["verify"]) == 0
+    out = capsys.readouterr().out
+    assert "flags: 0" in out
+    flags_file = tmp_path / "flags.json"
+    assert flags_file.exists()
+    flags_data = json.loads(flags_file.read_text(encoding="utf-8"))
+    assert flags_data["valid"] is True
+
+
+def test_verify_fails_when_defect_found(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
+        {"id": "T1.K01", "number": 1, "sektionen": [
+            {"id": "T1.K01.S01", "saetze": [
+                {"id": "T1.K01.S01.s001", "text": "Der Gestank."}]}]}]}]}
+    (tmp_path / "book.json").write_text(json.dumps(book), encoding="utf-8")
+    (tmp_path / "translated.json").write_text(
+        json.dumps({"T1.K01.S01.s001": ""}), encoding="utf-8"
+    )
+
+    assert cli.main(["verify"]) == 1
+    out = capsys.readouterr().out
+    assert "flags: 1" in out
+    flags_file = tmp_path / "flags.json"
+    assert flags_file.exists()
+    flags_data = json.loads(flags_file.read_text(encoding="utf-8"))
+    assert flags_data["valid"] is False
+    assert len(flags_data["flags"]) == 1
+
+
+def test_verify_missing_translated_file(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    assert cli.main(["verify"]) == 1
+    err = capsys.readouterr().err
+    assert "does not exist" in err
+
+
+def test_render_emits_markdown_and_manifest(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    monkeypatch.setattr(paths, "OUTPUT", tmp_path / "output")
+
+    book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
+        {"id": "T1.K01", "number": 1, "sektionen": [
+            {"id": "T1.K01.S01", "saetze": [
+                {"id": "T1.K01.S01.s001", "text": "Der Gestank."}]}]}]}]}
+    (tmp_path / "book.json").write_text(json.dumps(book), encoding="utf-8")
+    (tmp_path / "translated.json").write_text(
+        json.dumps({"T1.K01.S01.s001": "The stench."}), encoding="utf-8"
+    )
+
+    assert cli.main(["render"]) == 0
+    out = capsys.readouterr().out
+    assert "emitted: 1" in out
+    assert "skipped: 0" in out
+    out_file = tmp_path / "output" / "T1" / "T1.K01.S01.md"
+    assert out_file.exists()
+    assert "| *Der Gestank.* | The stench. |" in out_file.read_text(encoding="utf-8")
+    assert (tmp_path / "output" / "manifest.json").exists()
+
+
+def test_render_missing_translated_file(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    monkeypatch.setattr(paths, "OUTPUT", tmp_path / "output")
+    assert cli.main(["render"]) == 1
+    err = capsys.readouterr().err
+    assert "does not exist" in err
+
+
+
