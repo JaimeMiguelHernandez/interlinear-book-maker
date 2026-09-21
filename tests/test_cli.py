@@ -36,6 +36,48 @@ def test_check_never_prints_book_text(tmp_path, monkeypatch, capsys):
     assert "Der Hund" not in captured.out + captured.err
 
 
+class _FakeToken:
+    is_alpha = True
+
+    def __init__(self, lemma, pos):
+        self.lemma_, self.pos_ = lemma, pos
+
+
+class _FakeNLP:
+    """Stands in for spaCy: every sentence yields the same three tokens."""
+
+    def pipe(self, texts, batch_size=64):
+        for _ in texts:
+            yield [_FakeToken("Gestank", "NOUN"),
+                   _FakeToken("Zug", "NOUN"),
+                   _FakeToken("der", "DET")]
+
+
+def test_senses_builds_the_subset_for_recurring_lemmas_only(tmp_path, monkeypatch, capsys):
+    from parfum import sentences
+    from parfum.wiktextract import Sense, load_subset
+
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    monkeypatch.setattr(paths, "REFERENCE", tmp_path)
+    monkeypatch.setattr(sentences, "load_nlp", lambda: _FakeNLP())
+    book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
+        {"id": "T1.K01", "number": 1, "sektionen": [
+            {"id": "T1.K01.S01", "saetze": [
+                {"id": f"T1.K01.S01.s{i:03d}", "text": "Der Gestank am Zug."}
+                for i in range(1, 10)]}]}]}]}
+    (tmp_path / "book.json").write_text(json.dumps(book), encoding="utf-8")
+
+    jsonl = Path(__file__).parent / "fixtures" / "wiktextract_mini.jsonl"
+    assert cli.main(["senses", "--jsonl", str(jsonl), "--min-count", "8"]) == 0
+
+    senses = load_subset(tmp_path / "senses.json")
+    assert set(senses) == {"Gestank", "Zug"}        # "der" is DET, "Gerber" unwanted
+    assert senses["Gestank"] == [Sense("noun", "stench, stink")]
+    out = capsys.readouterr().out
+    assert "wanted: 2  found: 2" in out
+    assert "Gestank" not in out                     # counts only, never vocabulary
+
+
 def test_glossary_candidates_writes_a_tsv_and_prints_counts_only(tmp_path, monkeypatch, capsys):
     from parfum.wiktextract import Sense, save_subset
 

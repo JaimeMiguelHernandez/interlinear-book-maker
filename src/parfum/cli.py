@@ -100,6 +100,20 @@ def _check(_args) -> int:
     return 1 if problems else 0
 
 
+def _senses(args) -> int:
+    from parfum.candidates import count_lemmas, recurring
+    from parfum.sentences import load_nlp
+    from parfum.wiktextract import build_subset, save_subset
+
+    book = _read_book()
+    wanted = {c.lemma for c in recurring(count_lemmas(book, load_nlp()), args.min_count)}
+    with open(args.jsonl, encoding="utf-8") as handle:
+        senses = build_subset(handle, wanted)
+    save_subset(senses, paths.REFERENCE / "senses.json")
+    print(f"wanted: {len(wanted)}  found: {len(senses)}")
+    return 0
+
+
 def _glossary_candidates(args) -> int:
     """Generate glossary candidates from book, filtered by frequency and sense count."""
     from parfum.candidates import count_lemmas, monosemous, recurring
@@ -221,6 +235,9 @@ def main(argv=None) -> int:
     sub.add_parser("extract", help="PDF -> raw.txt + pagemap.json")
     sub.add_parser("segment", help="raw.txt -> book.json")
     sub.add_parser("check", help="verify book.json against raw.txt")
+    se = sub.add_parser("senses", help="kaikki JSONL -> data/reference/senses.json")
+    se.add_argument("--jsonl", required=True)
+    se.add_argument("--min-count", type=int, default=8)
     cand = sub.add_parser("glossary-candidates",
                           help="book.json -> candidates.tsv for curation")
     cand.add_argument("--min-count", type=int, default=8)
@@ -237,6 +254,7 @@ def main(argv=None) -> int:
         "extract": _extract,
         "segment": _segment,
         "check": _check,
+        "senses": _senses,
         "glossary-candidates": _glossary_candidates,
         "glossary-validate": _glossary_validate,
         "glossary-upload": _glossary_upload,
