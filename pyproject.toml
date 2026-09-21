@@ -3,7 +3,7 @@ name = "parfum"
 version = "0.1.0"
 description = "Interlinear German-English study edition pipeline"
 requires-python = ">=3.12,<3.13"
-dependencies = ["spacy>=3.8,<4"]
+dependencies = ["spacy>=3.8,<4", "httpx>=0.27"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]

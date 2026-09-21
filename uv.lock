@@ -318,6 +318,7 @@ name = "parfum"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "httpx" },
     { name = "spacy" },
 ]
 
@@ -328,6 +329,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.27" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "spacy", specifier = ">=3.8,<4" },
 ]

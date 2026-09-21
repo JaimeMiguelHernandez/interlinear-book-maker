@@ -57,3 +57,44 @@ def test_glossary_candidates_writes_a_tsv_and_prints_counts_only(tmp_path, monke
     out = capsys.readouterr().out
     assert "candidates: 1" in out
     assert "Geruch" not in out          # never print book vocabulary to stdout
+
+
+def test_translate_dry_run_spends_nothing_and_prints_the_preflight(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    monkeypatch.setattr(paths, "DEEPL_CACHE", tmp_path / "cache")
+    monkeypatch.setenv("DEEPL_AUTH_KEY", "key")
+    book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
+        {"id": "T1.K01", "number": 1, "sektionen": [
+            {"id": "T1.K01.S01", "saetze": [
+                {"id": "T1.K01.S01.s001", "text": "Der Gestank."}]}]}]}]}
+    (tmp_path / "book.json").write_text(json.dumps(book), encoding="utf-8")
+
+    calls = []
+
+    class FakeClient:
+        def usage(self):
+            from parfum.deepl import Usage
+            return Usage(0, 500_000)
+
+        def translate(self, *a, **kw):
+            calls.append(kw)
+            raise AssertionError("dry run must not translate")
+
+    monkeypatch.setattr(cli, "_client", lambda: FakeClient())
+    assert cli.main(["translate", "--dry-run"]) == 0
+    assert calls == []
+    out = capsys.readouterr().out
+    assert "pending sentences: 1" in out
+    assert "Gestank" not in out
+
+
+def test_glossary_validate_rejects_an_entry_without_a_matching_sense(tmp_path, monkeypatch):
+    from parfum.wiktextract import Sense, save_subset
+
+    monkeypatch.setattr(paths, "CONFIG", tmp_path)
+    monkeypatch.setattr(paths, "REFERENCE", tmp_path)
+    (tmp_path / "glossary.tsv").write_text(
+        "# source\ttarget\tevidence\nZug\ttrain\tw: train\n", encoding="utf-8")
+    save_subset({"Zug": [Sense("noun", "train"), Sense("noun", "draught")]},
+                tmp_path / "senses.json")
+    assert cli.main(["glossary-validate"]) == 1
