@@ -173,7 +173,7 @@ def _glossary_validate(_args) -> int:
 
 def _glossary_ab(args) -> int:
     from parfum.ab import compare, report
-    from parfum.deepl import load_instructions
+    from parfum.gemini import load_instructions
 
     book = _read_book()
     diffs = compare(book, _load_glossary(),

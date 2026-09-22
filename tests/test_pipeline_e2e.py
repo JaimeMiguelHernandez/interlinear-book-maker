@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 
 from parfum.cache import Cache, key
-from parfum.deepl import MODEL_TYPE, Client, Translation
 from parfum.extract import normalize
+from parfum.gemini import MODEL, Translation
 from parfum.glossary import Entry
 from parfum.model import Book, Kapitel, Satz, Sektion, Teil
 from parfum.notion import NotionClient
@@ -50,10 +50,10 @@ class Forbidden:
 def test_a_primed_cache_runs_the_stage_without_touching_the_network(tmp_path):
     book, cache = _book(), Cache(tmp_path / "cache")
     for satz in book.iter_saetze():
-        cache.put(key(satz.text, ENTRIES, MODEL_TYPE, INSTR),
-                  Translation(f"EN:{satz.text}", len(satz.text), MODEL_TYPE))
+        cache.put(key(satz.text, ENTRIES, MODEL, INSTR),
+                  Translation(f"EN:{satz.text}", MODEL))
 
-    result = run(book, ENTRIES, INSTR, cache, Forbidden(), "gl-1")
+    result = run(book, ENTRIES, INSTR, cache, Forbidden())
     out = tmp_path / "translated.json"
     write_translated(result, out)
 
@@ -111,11 +111,11 @@ def test_full_pipeline_stages_1_to_7_e2e(tmp_path: Path):
 
     cache = Cache(tmp_path / "cache")
     for satz in book.iter_saetze():
-        cache.put(key(satz.text, ENTRIES, MODEL_TYPE, INSTR),
-                  Translation(f"EN:{satz.text}", len(satz.text), MODEL_TYPE))
+        cache.put(key(satz.text, ENTRIES, MODEL, INSTR),
+                  Translation(f"EN:{satz.text}", MODEL))
 
     # Stage 4: Translate
-    res = run(book, ENTRIES, INSTR, cache, Forbidden(), "gl-1")
+    res = run(book, ENTRIES, INSTR, cache, Forbidden())
     translated_path = tmp_path / "translated.json"
     write_translated(res, translated_path)
     translated = json.loads(translated_path.read_text(encoding="utf-8"))
@@ -175,21 +175,6 @@ def test_full_pipeline_stages_1_to_7_e2e(tmp_path: Path):
     assert p_summary2.published == 0
     assert p_summary2.skipped == sektion_count
     assert published_calls == 0
-
-
-@pytest.mark.skipif(not (os.environ.get("PARFUM_LIVE") and os.environ.get("DEEPL_AUTH_KEY")),
-                    reason="opt-in: set PARFUM_LIVE=1 and DEEPL_AUTH_KEY")
-def test_live_smoke_translates_a_couple_hundred_characters():
-    import httpx
-
-    http = httpx.Client(timeout=60.0)
-    client = Client(os.environ["DEEPL_AUTH_KEY"],
-                    lambda m, u, **kw: http.request(m, u, **kw))
-    results = client.translate(["Der Gestank war entsetzlich."],
-                               context=None, glossary_id=None, instructions=[])
-    assert len(results) == 1
-    assert results[0].billed_characters > 0
-    assert results[0].model_type_used                 # records what DeepL actually used
 
 
 @pytest.mark.skipif(not (os.environ.get("PARFUM_LIVE") and os.environ.get("NOTION_API_KEY") and os.environ.get("NOTION_PARENT_ID")),
