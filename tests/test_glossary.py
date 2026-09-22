@@ -1,6 +1,6 @@
 import pytest
 
-from parfum.glossary import Entry, dump_tsv, entries_for, parse_tsv, to_deepl_tsv
+from parfum.glossary import Entry, dump_tsv, entries_for, parse_tsv
 
 SAMPLE = """# source\ttarget\tevidence
 Gestank\tstench\twiktionary: Gestank (n) "stench, stink"
@@ -18,10 +18,6 @@ def test_parse_tsv_reads_three_columns_and_skips_comments():
 
 def test_dump_tsv_round_trips():
     assert parse_tsv(dump_tsv(parse_tsv(SAMPLE))) == parse_tsv(SAMPLE)
-
-
-def test_to_deepl_tsv_drops_the_evidence_column():
-    assert to_deepl_tsv(parse_tsv(SAMPLE)) == "Gestank\tstench\nGerber\ttanner"
 
 
 def test_parse_tsv_rejects_a_row_without_evidence():

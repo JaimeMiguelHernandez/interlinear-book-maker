@@ -19,11 +19,11 @@ class Divergence:
 
 
 def compare(book: Book, entries: list[Entry], instructions: list[str], client, *,
-            scope: str, glossary_id: str, cache_root: Path) -> list[Divergence]:
+            scope: str, cache_root: Path) -> list[Divergence]:
     baseline = run(book, [], instructions, Cache(cache_root / "without"), client,
-                   None, scope=scope)
+                   scope=scope)
     treated = run(book, entries, instructions, Cache(cache_root / "with"), client,
-                  glossary_id, scope=scope)
+                  scope=scope)
     return [Divergence(sid, baseline.translated[sid], treated.translated[sid])
             for sid in baseline.translated
             if baseline.translated[sid] != treated.translated[sid]]

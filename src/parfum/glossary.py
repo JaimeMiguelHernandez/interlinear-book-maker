@@ -1,4 +1,4 @@
-"""The glossary TSV contract. Three columns in git, two columns to DeepL."""
+"""The glossary TSV contract. Three columns in git."""
 
 from __future__ import annotations
 
@@ -35,10 +35,6 @@ def parse_tsv(text: str) -> list[Entry]:
 def dump_tsv(entries: list[Entry]) -> str:
     rows = "\n".join(f"{e.source}\t{e.target}\t{e.evidence}" for e in entries)
     return f"{HEADER}\n{rows}\n"
-
-
-def to_deepl_tsv(entries: list[Entry]) -> str:
-    return "\n".join(f"{e.source}\t{e.target}" for e in entries)
 
 
 def entries_for(sentence: str, entries: list[Entry]) -> list[Entry]:

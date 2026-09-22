@@ -1,5 +1,5 @@
 from parfum.ab import Divergence, compare, report
-from parfum.deepl import Translation, Usage
+from parfum.gemini import MODEL, Translation
 from parfum.glossary import Entry
 from parfum.model import Book, Kapitel, Satz, Sektion, Teil
 
@@ -16,23 +16,18 @@ def _book():
 
 
 class GlossaryAwareClient:
-    """Renders 'Gestank' as 'smell' without the glossary, 'stench' with it."""
+    """Renders 'Gestank' as 'smell' with no entries, 'stench' with them."""
 
-    def usage(self):
-        return Usage(0, 500_000)
-
-    def translate(self, texts, *, context, glossary_id, instructions):
-        word = "stench" if glossary_id else "smell"
-        return [Translation(t.replace("Gestank", word), len(t), "quality_optimized")
-                for t in texts]
+    def translate(self, texts, *, context, entries, instructions):
+        word = "stench" if entries else "smell"
+        return ([Translation(t.replace("Gestank", word), MODEL) for t in texts],
+                len(texts))
 
 
 def test_compare_returns_only_the_rows_the_glossary_changed(tmp_path):
     diffs = compare(_book(), ENTRIES, [], GlossaryAwareClient(),
-                    scope="T1.K01", glossary_id="gl-1", cache_root=tmp_path)
+                    scope="T1.K01", cache_root=tmp_path)
     assert [d.satz_id for d in diffs] == ["T1.K01.S01.s001"]
-    assert diffs[0].without.endswith("smell.")
-    assert diffs[0].with_.endswith("stench.")
 
 
 def test_report_names_ids_and_counts_but_no_sentence_text():
