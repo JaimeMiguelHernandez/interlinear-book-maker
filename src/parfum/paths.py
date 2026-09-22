@@ -13,7 +13,7 @@ REFERENCE = DATA / "reference"
 INTERIM = DATA / "interim"
 CACHE = DATA / "cache"
 OUTPUT = DATA / "output"
-DEEPL_CACHE = CACHE / "deepl"
+TRANSLATION_CACHE = CACHE / "translation"
 
 
 def ensure_dirs(base: Path | None = None) -> None:
@@ -21,4 +21,4 @@ def ensure_dirs(base: Path | None = None) -> None:
     root = DATA if base is None else base
     for name in SUBDIRS:
         (root / name).mkdir(parents=True, exist_ok=True)
-    (root / "cache" / "deepl").mkdir(parents=True, exist_ok=True)
+    (root / "cache" / "translation").mkdir(parents=True, exist_ok=True)

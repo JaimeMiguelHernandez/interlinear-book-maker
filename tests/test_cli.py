@@ -103,7 +103,7 @@ def test_glossary_candidates_writes_a_tsv_and_prints_counts_only(tmp_path, monke
 
 def test_translate_dry_run_spends_nothing_and_prints_the_preflight(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(paths, "INTERIM", tmp_path)
-    monkeypatch.setattr(paths, "DEEPL_CACHE", tmp_path / "cache")
+    monkeypatch.setattr(paths, "TRANSLATION_CACHE", tmp_path / "cache")
     monkeypatch.setenv("DEEPL_AUTH_KEY", "key")
     book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
         {"id": "T1.K01", "number": 1, "sektionen": [
@@ -149,10 +149,10 @@ def test_translate_force_dry_run_ignores_the_cache_in_its_preflight_count(
     from parfum.deepl import MODEL_TYPE, Translation
 
     monkeypatch.setattr(paths, "INTERIM", tmp_path)
-    monkeypatch.setattr(paths, "DEEPL_CACHE", tmp_path / "cache")
+    monkeypatch.setattr(paths, "TRANSLATION_CACHE", tmp_path / "cache")
     monkeypatch.setattr(paths, "CONFIG", tmp_path)
     monkeypatch.setenv("DEEPL_AUTH_KEY", "key")
-    (tmp_path / "deepl_instructions.json").write_text("[]", encoding="utf-8")
+    (tmp_path / "translation_instructions.json").write_text("[]", encoding="utf-8")
     book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
         {"id": "T1.K01", "number": 1, "sektionen": [
             {"id": "T1.K01.S01", "saetze": [

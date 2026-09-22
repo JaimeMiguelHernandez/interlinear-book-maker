@@ -13,7 +13,7 @@ def test_data_dirs_live_under_root():
     assert paths.INTERIM == paths.DATA / "interim"
     assert paths.CACHE == paths.DATA / "cache"
     assert paths.OUTPUT == paths.DATA / "output"
-    assert paths.DEEPL_CACHE == paths.DATA / "cache" / "deepl"
+    assert paths.TRANSLATION_CACHE == paths.DATA / "cache" / "translation"
 
 
 def test_config_is_tracked_not_under_data():

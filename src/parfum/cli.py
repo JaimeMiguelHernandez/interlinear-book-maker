@@ -184,10 +184,10 @@ def _glossary_ab(args) -> int:
 
     book = _read_book()
     diffs = compare(book, _load_glossary(),
-                    load_instructions(paths.CONFIG / "deepl_instructions.json"),
+                    load_instructions(paths.CONFIG / "translation_instructions.json"),
                     _client(), scope=args.scope,
                     glossary_id=(paths.INTERIM / "glossary_id.txt").read_text().strip(),
-                    cache_root=paths.DEEPL_CACHE / "ab")
+                    cache_root=paths.TRANSLATION_CACHE / "ab")
     print(report(diffs))
     return 0
 
@@ -200,8 +200,8 @@ def _translate(args) -> int:
 
     book = _read_book()
     entries = _load_glossary()
-    instructions = load_instructions(paths.CONFIG / "deepl_instructions.json")
-    cache = Cache(paths.DEEPL_CACHE)
+    instructions = load_instructions(paths.CONFIG / "translation_instructions.json")
+    cache = Cache(paths.TRANSLATION_CACHE)
     client = _client()
 
     saetze = [s for s in book.iter_saetze()
