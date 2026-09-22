@@ -76,3 +76,28 @@ brief.
 `candidates`, `usageMetadata`, `modelVersion`, `responseId`. `modelVersion` in the
 recorded fixture reads `gemini-3.6-flash`, confirming which model actually served
 the probe.
+
+## Task 11 — live verification, one chapter (T1.K01)
+
+- Dry run: 55 pending sentences, 9092 pending characters, exit 0, no network call.
+- First live attempt hit `TransportError: Gemini still failing after 5 attempts`
+  (all 5 retries landed on a retryable status). A manual replay of the exact same
+  request body moments later returned HTTP 200 — this was transient free-tier rate
+  limiting, not a code defect. The retry succeeded outright.
+- Live translate: `cache: 0  api: 55  tokens: 13855` for 55 sentences (9092
+  characters). That's **~252 tokens/sentence** or **~1.52 tokens/character** for
+  this chapter, including Gemini's default "thinking" overhead (confirmed present
+  in the Step 2 probe above — `thinkingConfig` is not set, so every batch pays a
+  thoughts-token tax).
+- Second run: `cache: 55  api: 0  tokens: 0` — cache fully absorbed the repeat run.
+- `parfum verify --scope T1.K01`: 55 checked, 0 flags.
+- `parfum render --scope T1.K01`: 1 emitted, 0 conflicts. Manual read of 10
+  sentences: register formal and consistent with the source, no mistranslation or
+  drift observed.
+
+**Full-book cost estimate:** `uv run parfum check` reports 4118 sentences total.
+At ~252 tokens/sentence, a full first pass costs roughly **1.0-1.05M tokens**.
+The free tier's TPM/RPD limits (see Step 1 above) make the per-run rate limiting
+observed here — not the total token budget — the binding constraint on how fast
+a full-book pass can go; expect to run it in scope-limited chunks (by Teil or
+Kapitel) rather than a single unscoped `parfum translate` call.
