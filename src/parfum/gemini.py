@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import random
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -110,3 +112,53 @@ def parse_response(payload: dict, expected: int) -> tuple[list[Translation], int
     by_id = {row["id"]: row["english"] for row in rows}
     tokens = payload.get("usageMetadata", {}).get("totalTokenCount", 0)
     return [Translation(by_id[i], MODEL) for i in range(1, expected + 1)], tokens
+
+
+BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+MAX_ATTEMPTS = 5
+
+
+class TransportError(RuntimeError):
+    """Retries are spent. Checkpoint and stop."""
+
+
+class BadRequest(RuntimeError):
+    """400/401/403 — a bad key, model, or body. Retrying cannot help."""
+
+
+def _is_retryable(status_code: int) -> bool:
+    """429 (RPM/RPD) and any 5xx get exponential backoff (spec §5)."""
+    return status_code == 429 or 500 <= status_code < 600
+
+
+class Client:
+    def __init__(self, api_key: str, transport, sleep=time.sleep,
+                 model: str = MODEL) -> None:
+        self.api_key = api_key
+        self.transport = transport
+        self.sleep = sleep
+        self.model = model
+
+    def _send(self, body: dict) -> dict:
+        url = f"{BASE_URL}/models/{self.model}:generateContent"
+        headers = {"x-goog-api-key": self.api_key,
+                   "Content-Type": "application/json"}
+        for attempt in range(MAX_ATTEMPTS):
+            response = self.transport("POST", url, headers=headers, json=body)
+            if response.status_code == 200:
+                return response.json()
+            if response.status_code in (400, 401, 403):
+                message = response.json().get("error", {}).get("message", "")
+                raise BadRequest(f"{response.status_code}: {message}")
+            if not _is_retryable(response.status_code):
+                raise TransportError(f"unexpected status {response.status_code}")
+            if attempt < MAX_ATTEMPTS - 1:
+                self.sleep(2 ** attempt + random.random())
+        raise TransportError(f"Gemini still failing after {MAX_ATTEMPTS} attempts")
+
+    def translate(self, texts: list[str], *, context: str | None,
+                  entries: list[Entry],
+                  instructions: list[str]) -> tuple[list[Translation], int]:
+        body = build_request(texts, context=context, entries=entries,
+                             instructions=instructions)
+        return parse_response(self._send(body), len(texts))
