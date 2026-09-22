@@ -8,8 +8,8 @@ import os
 import sys
 
 from parfum import paths
-from parfum.deepl import Client as DeepLClient
 from parfum.extract import normalize, run_pdftotext
+from parfum.gemini import Client as GeminiClient
 from parfum.model import Book
 from parfum.segment import HI, LO, build_book, reconstruct
 
@@ -139,11 +139,11 @@ def _glossary_candidates(args) -> int:
 def _client():
     import httpx
 
-    auth_key = os.environ.get("DEEPL_AUTH_KEY")
-    if not auth_key:
-        raise SystemExit("DEEPL_AUTH_KEY is not set")
-    client = httpx.Client(timeout=60.0)
-    return DeepLClient(auth_key, lambda method, url, **kw: client.request(method, url, **kw))
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise SystemExit("GEMINI_API_KEY is not set")
+    client = httpx.Client(timeout=120.0)
+    return GeminiClient(api_key, lambda method, url, **kw: client.request(method, url, **kw))
 
 
 def _load_glossary():
@@ -171,13 +171,6 @@ def _glossary_validate(_args) -> int:
     return 1 if problems else 0
 
 
-def _glossary_upload(_args) -> int:
-    glossary_id = _client().create_glossary("parfum", _load_glossary())
-    (paths.INTERIM / "glossary_id.txt").write_text(glossary_id, encoding="utf-8")
-    print(f"glossary_id: {glossary_id}")
-    return 0
-
-
 def _glossary_ab(args) -> int:
     from parfum.ab import compare, report
     from parfum.deepl import load_instructions
@@ -186,7 +179,6 @@ def _glossary_ab(args) -> int:
     diffs = compare(book, _load_glossary(),
                     load_instructions(paths.CONFIG / "translation_instructions.json"),
                     _client(), scope=args.scope,
-                    glossary_id=(paths.INTERIM / "glossary_id.txt").read_text().strip(),
                     cache_root=paths.TRANSLATION_CACHE / "ab")
     print(report(diffs))
     return 0
@@ -194,35 +186,28 @@ def _glossary_ab(args) -> int:
 
 def _translate(args) -> int:
     from parfum.cache import Cache
-    from parfum.deepl import MODEL_TYPE, load_instructions, preflight
     from parfum.cache import key as cache_key
+    from parfum.gemini import MODEL, load_instructions
     from parfum.translate import run, write_translated
 
     book = _read_book()
     entries = _load_glossary()
     instructions = load_instructions(paths.CONFIG / "translation_instructions.json")
     cache = Cache(paths.TRANSLATION_CACHE)
-    client = _client()
 
     saetze = [s for s in book.iter_saetze()
               if args.scope is None or s.id.startswith(args.scope)]
     pending = [s.text for s in saetze
-               if args.force or cache.get(cache_key(s.text, entries, MODEL_TYPE, instructions)) is None]
-    check = preflight(pending, client.usage())
-    print(f"pending sentences: {check.pending_sentences}  "
-          f"pending characters: {check.pending_characters}  "
-          f"remaining: {check.remaining}  fits: {check.fits}")
+               if args.force or cache.get(cache_key(s.text, entries, MODEL, instructions)) is None]
+    print(f"pending sentences: {len(pending)}  "
+          f"pending characters: {sum(len(t) for t in pending)}")
     if args.dry_run:
         return 0
-    if not check.fits:
-        return 1
 
-    glossary_path = paths.INTERIM / "glossary_id.txt"
-    result = run(book, entries, instructions, cache, client,
-                 glossary_path.read_text().strip() if glossary_path.is_file() else None,
+    result = run(book, entries, instructions, cache, _client(),
                  scope=args.scope, force=args.force)
     write_translated(result, paths.INTERIM / "translated.json")
-    print(f"cache: {result.from_cache}  api: {result.from_api}  billed: {result.billed}")
+    print(f"cache: {result.from_cache}  api: {result.from_api}  tokens: {result.tokens}")
     if result.stopped_at:
         print(f"STOPPED: {result.stopped_at}", file=sys.stderr)
         return 1
@@ -344,7 +329,6 @@ def main(argv=None) -> int:
                           help="book.json -> candidates.tsv for curation")
     cand.add_argument("--min-count", type=int, default=8)
     sub.add_parser("glossary-validate", help="check config/glossary.tsv")
-    sub.add_parser("glossary-upload", help="create the DeepL glossary")
     ab = sub.add_parser("glossary-ab", help="translate a sample with and without")
     ab.add_argument("--scope", default="T1.K01")
     tr = sub.add_parser("translate", help="book.json -> translated.json")
@@ -368,7 +352,6 @@ def main(argv=None) -> int:
         "senses": _senses,
         "glossary-candidates": _glossary_candidates,
         "glossary-validate": _glossary_validate,
-        "glossary-upload": _glossary_upload,
         "glossary-ab": _glossary_ab,
         "translate": _translate,
         "verify": _verify,

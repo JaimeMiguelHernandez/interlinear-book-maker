@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from parfum import cli, paths
 from parfum.extract import normalize
 
@@ -101,10 +103,11 @@ def test_glossary_candidates_writes_a_tsv_and_prints_counts_only(tmp_path, monke
     assert "Geruch" not in out          # never print book vocabulary to stdout
 
 
-def test_translate_dry_run_spends_nothing_and_prints_the_preflight(tmp_path, monkeypatch, capsys):
+def test_translate_dry_run_spends_nothing_and_prints_the_pending_count(
+        tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(paths, "INTERIM", tmp_path)
     monkeypatch.setattr(paths, "TRANSLATION_CACHE", tmp_path / "cache")
-    monkeypatch.setenv("DEEPL_AUTH_KEY", "key")
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
     book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
         {"id": "T1.K01", "number": 1, "sektionen": [
             {"id": "T1.K01.S01", "saetze": [
@@ -114,10 +117,6 @@ def test_translate_dry_run_spends_nothing_and_prints_the_preflight(tmp_path, mon
     calls = []
 
     class FakeClient:
-        def usage(self):
-            from parfum.deepl import Usage
-            return Usage(0, 500_000)
-
         def translate(self, *a, **kw):
             calls.append(kw)
             raise AssertionError("dry run must not translate")
@@ -127,7 +126,19 @@ def test_translate_dry_run_spends_nothing_and_prints_the_preflight(tmp_path, mon
     assert calls == []
     out = capsys.readouterr().out
     assert "pending sentences: 1" in out
+    assert "remaining" not in out and "fits" not in out
     assert "Gestank" not in out
+
+
+def test_glossary_upload_is_gone():
+    with pytest.raises(SystemExit):
+        cli.main(["glossary-upload"])
+
+
+def test_client_requires_the_gemini_key(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    with pytest.raises(SystemExit, match="GEMINI_API_KEY"):
+        cli._client()
 
 
 def test_glossary_validate_rejects_an_entry_without_a_matching_sense(tmp_path, monkeypatch):
@@ -142,16 +153,16 @@ def test_glossary_validate_rejects_an_entry_without_a_matching_sense(tmp_path, m
     assert cli.main(["glossary-validate"]) == 1
 
 
-def test_translate_force_dry_run_ignores_the_cache_in_its_preflight_count(
+def test_translate_force_dry_run_ignores_the_cache_in_its_pending_count(
         tmp_path, monkeypatch, capsys):
     from parfum.cache import Cache
     from parfum.cache import key as cache_key
-    from parfum.deepl import MODEL_TYPE, Translation
+    from parfum.gemini import MODEL, Translation
 
     monkeypatch.setattr(paths, "INTERIM", tmp_path)
     monkeypatch.setattr(paths, "TRANSLATION_CACHE", tmp_path / "cache")
     monkeypatch.setattr(paths, "CONFIG", tmp_path)
-    monkeypatch.setenv("DEEPL_AUTH_KEY", "key")
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
     (tmp_path / "translation_instructions.json").write_text("[]", encoding="utf-8")
     book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
         {"id": "T1.K01", "number": 1, "sektionen": [
@@ -163,14 +174,10 @@ def test_translate_force_dry_run_ignores_the_cache_in_its_preflight_count(
     # config/glossary.tsv and empty instructions above match what cli._translate
     # will load, so this is the exact key it will look up.
     cache = Cache(tmp_path / "cache")
-    cache.put(cache_key("Der Gestank.", [], MODEL_TYPE, []),
-              Translation("The stench.", 12, MODEL_TYPE))
+    cache.put(cache_key("Der Gestank.", [], MODEL, []),
+              Translation("The stench.", MODEL))
 
     class FakeClient:
-        def usage(self):
-            from parfum.deepl import Usage
-            return Usage(0, 500_000)
-
         def translate(self, *a, **kw):
             raise AssertionError("dry run must not translate")
 
