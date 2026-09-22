@@ -155,10 +155,10 @@ review.
 | `paths.DEEPL_CACHE` = `cache/deepl` | `paths.TRANSLATION_CACHE` = `cache/translation` | the cache is keyed by model, so it is a translation cache, not a provider cache |
 | `config/deepl_instructions.json` | `config/translation_instructions.json` | contents are provider-neutral prose rules |
 | `MODEL_TYPE = "quality_optimized"` | `MODEL = "gemini-3.6-flash"` | a model name, not a DeepL tier |
-| `Translation.billed_characters` | `Translation.tokens` | Gemini bills tokens; characters were DeepL's unit |
+| `Translation.billed_characters` | *(dropped)* | `Translation` is now `(text, model)` only; token counts are returned per-batch as the second element of `gemini.parse_response()`'s tuple, not stored on `Translation` |
 | `Translation.model_type_used` | `Translation.model` | echoes the model actually used |
 | `Result.billed` | `Result.tokens` | follows the field |
-| `Cache.billed_total()` | `Cache.token_total()` | follows the field |
+| `Cache.billed_total()` | *(deleted)* | no replacement was built; per-batch tokens accumulate on `translate.Result.tokens` instead |
 | `cache.key(..., model_type, ...)` | `cache.key(..., model, ...)` | follows the constant |
 
 CLI output changes with it: `cache: N  api: N  tokens: N`.

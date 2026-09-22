@@ -2,8 +2,9 @@ import json
 
 import pytest
 
-from parfum.gemini import (MODEL, AlignmentError, Translation, build_batches,
-                           build_request, parse_response)
+from parfum.gemini import (MAX_INSTRUCTION_CHARS, MAX_INSTRUCTIONS, MODEL,
+                           AlignmentError, Translation, build_batches,
+                           build_request, load_instructions, parse_response)
 from parfum.glossary import Entry
 
 ENTRIES = [Entry("Gestank", "stench", "w: stench"),
@@ -88,6 +89,20 @@ def test_non_json_body_raises_alignment_error():
 def test_empty_candidates_raise_alignment_error():
     with pytest.raises(AlignmentError):
         parse_response({"candidates": []}, expected=1)
+
+
+def test_load_instructions_rejects_too_many(tmp_path):
+    path = tmp_path / "i.json"
+    path.write_text(json.dumps(["ok"] * (MAX_INSTRUCTIONS + 1)), encoding="utf-8")
+    with pytest.raises(ValueError, match=f"at most {MAX_INSTRUCTIONS}"):
+        load_instructions(path)
+
+
+def test_load_instructions_rejects_an_overlong_entry(tmp_path):
+    path = tmp_path / "i.json"
+    path.write_text(json.dumps(["x" * (MAX_INSTRUCTION_CHARS + 1)]), encoding="utf-8")
+    with pytest.raises(ValueError, match=f"{MAX_INSTRUCTION_CHARS} characters"):
+        load_instructions(path)
 
 
 def test_the_recorded_response_parses():
