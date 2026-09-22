@@ -102,7 +102,7 @@ book-editor/
 │   ├── raw/                      # the PDF
 │   ├── reference/                # Wiktextract subset
 │   ├── interim/                  # book.json, translated.json
-│   ├── cache/deepl/              # content-addressed translation cache
+│   ├── cache/translation/              # content-addressed translation cache
 │   └── output/                   # markdown ← SOURCE OF TRUTH
 ├── docs/superpowers/specs/
 ├── tests/
@@ -123,8 +123,8 @@ file contract is the only coupling between stages.
 |---|---|---|---|
 | 1 | `extract` | deterministic | PDF → `raw.txt` + page map |
 | 2 | `segment` | deterministic | `raw.txt` → `book.json` |
-| 3 | `glossary` | **agent** | recurring terms → curated TSV → DeepL `glossary_id` |
-| 4 | `translate` | deterministic | `book.json` + glossary → DeepL → `translated.json` |
+| 3 | `glossary` | **agent** | recurring terms → curated TSV (for prompt injection) |
+| 4 | `translate` | deterministic | `book.json` + glossary → Gemini → `translated.json` |
 | 5 | `verify` | deterministic | → `flags.json` |
 | 6 | `render` | deterministic | → `data/output/…/sektion.md` |
 | 7 | `publish` | deterministic | → Notion |
@@ -138,7 +138,7 @@ the revised one.)
 
 ### 3.3 Division of labour
 
-**DeepL translates.** No agent writes English prose at any stage. The one place
+**Gemini translates.** No agent writes English prose at any stage. The one place
 an agent emits English at all is the glossary TSV — single target terms, each
 carrying dictionary evidence, versioned in git and A/B validated before use
 (§5.1). That bound is now the whole of the constraint; there is no longer an
@@ -172,9 +172,8 @@ a naive splitter fails on: ordinals (`am 31. Dezember`), abbreviations, and
 ### 4.2 `translated.json` — the English side
 
 Keyed by the same Satz IDs as `book.json`, one English string each. Row parity
-is structural rather than checked: DeepL is called with `text` as an array and
-`split_sentences: "0"`, so one input element yields exactly one output element
-(§6.2).
+is checked rather than structural: Gemini returns JSON that is parsed and
+reassembled by id (§6.2), so position is not a guarantee.
 
 ---
 
@@ -182,7 +181,7 @@ is structural rather than checked: DeepL is called with `text` as an array and
 
 ### 5.1 Glossary curation (stage 3, agent)
 
-The glossary constrains DeepL's word choice for recurring terms. A bad entry
+The glossary constrains Gemini's word choice for recurring terms. A bad entry
 corrupts every sentence containing that term, so the blast radius is bounded by
 construction:
 
@@ -205,55 +204,46 @@ Structural checks: row parity, non-empty cells, every Satz ID in `book.json`
 present exactly once, Sektionen in order.
 
 There are no semantic checks. The previous design checked bolded English spans
-against Wiktextract senses; with nothing bolded, the English is DeepL's output
+against Wiktextract senses; with nothing bolded, the English is Gemini's output
 end to end and the pipeline has no second opinion to offer on it. Translation
 quality is judged by the golden-set drift check (§7.2) and by the user reading
 the rendered output, not by a per-sentence verifier.
 
 ---
 
-## 6. Failure, Resumption, and Quota
+## 6. Failure, Resumption, and Rate Limits
 
-### 6.1 Quota is the binding constraint
+### 6.1 Rate limits are the binding constraint
 
-The book is ~490,000 billed characters against DeepL's ~500,000-character
-monthly free tier. Roughly 2% headroom.
+Gemini's free tier is rate-limited (requests per minute and per day) rather than
+character-metered. There is no character budget to reason about, and therefore
+nothing to pre-flight.
 
-Three consequences:
+The single consequence:
 
-**Order of operations is a requirement, not a preference.** Chapter 1
-iteration and glossary A/B validation happen first, while they cost a few
-thousand characters per pass. The full-book pass runs only once everything
-upstream is settled.
+**No pre-flight check.** Before any run, compute and print the pending sentence
+and character count (with `--dry-run`), then let the rate-limit handler (§6.3)
+be the limiter. If the batch fits within Gemini's free-tier requests, it
+succeeds; if not, the 429 handler backs off and resumes.
 
-**The book is split across months.** Teil 1–2 in one billing month, Teil 3–4 in
-the next. Free tier, no cost, no compromise on quality. A paid month removes
-the constraint if the user prefers; pricing has not been investigated and should
-be checked before recommending it.
+### 6.2 Gemini request shape
 
-**Every request sets `show_billed_characters: true`,** so the local ledger
-reconciles against DeepL's own accounting. Before any run, a **pre-flight
-check** calls `/v2/usage`, computes the cost of pending uncached sentences, and
-refuses to start a batch that will not fit.
+One request carries up to 20 sentences and asks for JSON back:
 
-### 6.2 DeepL request parameters
-
-- `text` as an array — elements are order-preserved and independently
-  translated, which makes row parity structural rather than checked.
-- `split_sentences: "0"` — one input element yields one output element.
-- `model_type: quality_optimized`.
-- `context` — supplies surrounding narrative. **Context characters are not
-  billed.**
-- Custom instructions — up to 10 entries, 300 characters each, EN supported as a
-  target. Used to hold register consistent across the book.
-- 128 KiB per-request limit governs batch sizing.
+- **System instruction** — translation instructions (from
+  `config/translation_instructions.json`) plus a glossary block (one line per
+  entry, only for terms in the batch) and context (surrounding narrative marked
+  do-not-translate).
+- **User content** — the batch as numbered items, one sentence per item.
+- **Generation config** — `responseMimeType: application/json` with a response
+  schema of `array of {id: integer, english: string}`, and `temperature: 0`.
 
 ### 6.3 Failure handling
 
 | Failure | Behaviour |
 |---|---|
-| DeepL 429 / 5xx | Exponential backoff with jitter, bounded retries, then checkpoint and stop |
-| DeepL 456 (quota exhausted) | Not retryable. Clean halt reporting sentences remaining and their cost |
+| Gemini 429 / 5xx | Exponential backoff with jitter, bounded retries, then checkpoint and stop |
+| Malformed JSON or id misalignment | `AlignmentError` → checkpoint and stop (ids missing, duplicated, or extra) |
 | Pro limit hit mid-run | `run.sh` detects the failed `claude -p`, checkpoints, reports work orders remaining |
 | Partial write | Results written to temp and atomically renamed. A kill mid-write cannot leave a half-parsed file |
 | Invalid agent output | Schema-validated on read; failures requeued for a bounded number of attempts, then flagged. Malformed output never reaches `render` |
@@ -262,11 +252,13 @@ refuses to start a batch that will not fit.
 ### 6.4 The cache
 
 Cache key = `sha256(sentence text + the glossary entries whose source term
-occurs in that sentence + model_type + instruction set)`.
+occurs in that sentence + model + instruction set)`.
 
-Content-addressed, so re-segmentation and renumbering cost zero quota — same
+Content-addressed, so re-segmentation and renumbering cost zero API calls — same
 sentences, same hashes, same hits. The per-sentence glossary fingerprint means
 changing one glossary entry invalidates only the sentences containing that term.
+Switching to `gemini-3-flash` partitions the cache rather than blending two
+models' prose under one set of hashes.
 
 The cache is now the only expensive artifact worth preserving across runs.
 Everything downstream of `translate` is deterministic and cheap to redo.
@@ -303,7 +295,7 @@ than covering the book, which is the cost the user chose to stop paying.
 ## 7. Testing
 
 The expensive parts are external, so the strategy keeps them out of the loop.
-Tests never spend quota: the DeepL client runs against recorded responses, with
+Tests never spend API calls: the Gemini client runs against recorded responses, with
 one opt-in live smoke test of a couple hundred characters.
 
 ### 7.1 Deterministic stages
@@ -331,7 +323,7 @@ what bounds a bad entry's blast radius (§5.1).
 
 **A golden set** of roughly three hand-checked Sektionen is re-translated
 periodically, reporting drift as a number rather than a pass/fail. Models and
-DeepL both move; a hard assertion there would only produce noise. With stage 7
+Gemini both move; a hard assertion there would only produce noise. With stage 7
 gone this sample is the pipeline's only drift signal, so it is worth running on
 a schedule rather than on demand.
 
@@ -350,7 +342,7 @@ actually breaks.
 | 1 `extract` | All page text accounted for; known hyphen joins correct; umlauts verified | Done |
 | 2 `segment` | Concatenation invariant holds; trap cases pass; every Sektion 40–55 sentences, no paragraph split | Done |
 | 3 `glossary` | Every entry monosemous with evidence; A/B on a fixed sample shows no regression | Curated & validated (live A/B deferred pending `DEEPL_AUTH_KEY`) |
-| 4 `translate` | Row parity structural; billed characters within ±5% of pre-flight estimate | Implemented & verified against primed cache (live translation deferred pending `DEEPL_AUTH_KEY`) |
+| 4 `translate` | Row parity checked; pending sentences match actual requests | Implemented & verified against primed cache (live translation deferred pending `GEMINI_API_KEY`) |
 | 5 `verify` | Every injected defect class caught; `flags.json` produced | Done |
 | 6 `render` | Snapshot match; manifest written; nothing clobbered | Done |
 | 7 `publish` | Page count matches Sektion count; re-running changes nothing | Done (live publish deferred pending `NOTION_API_KEY`) |
@@ -363,9 +355,9 @@ explicitly accepted, published to the user's private Notion.
 ## 9. Execution Model
 
 Only a Claude Code Pro subscription is available — no API key, no billing. This
-used to be the design's tightest constraint after quota: two agent stages, one
+used to be the design's tightest constraint: with two agent stages, one
 of them 70–95 work orders that had to be checkpointed and resumed across
-rate-limit windows, driven by a headless `claude -p` loop in `run.sh`.
+rate-limit windows, a headless `claude -p` loop in `run.sh` was required.
 
 With alignment gone, stage 3 is the only agent stage and it is a single bounded
 curation run over a few hundred candidate terms. **The `run.sh` loop is no
@@ -382,7 +374,7 @@ an architectural one.
 
 | Dependency | Role | Access |
 |---|---|---|
-| DeepL API | Translation | Free tier, ~500k chars/month |
+| Gemini API | Translation | Free tier, rate-limited |
 | Wiktextract / kaikki.org | DE→EN sense checking for glossary candidates | Offline, ~1 GB JSONL, subset extracted |
 | PONS | Gap-filling sense lookup | Official API, free tier |
 | spaCy `de_core_news_lg` | Sentence splitting; lemmatization for glossary candidates | Local model |
@@ -420,3 +412,12 @@ Decisions made during design that a reader would otherwise have to re-derive:
    unit of agent work. No stage does per-Sektion agent work any more, so the
    band is now just a rendering and publishing unit — kept because
    `book.json` and the Notion page layout are built on it.
+6. **DeepL replaced with Gemini (2026-09-22).** DeepL's free tier became a
+   one-time 1,000,000-character allowance, not a renewing monthly budget. The
+   corpus is 487,270 normalized characters, so a single full pass fits — and a
+   second one, after any glossary or instruction change, does not. The project
+   needs a translation provider that stays free across re-runs, because re-runs
+   are the normal case in a study edition that gets revised. Gemini's free tier
+   is rate-limited (requests per minute and per day) rather than
+   character-metered, with no character budget to reason about and nothing to
+   pre-flight.
