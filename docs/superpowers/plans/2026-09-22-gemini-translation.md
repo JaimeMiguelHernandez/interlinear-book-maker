@@ -789,7 +789,7 @@ def test_a_misaligned_batch_stops_the_run_without_corrupting_the_cache(tmp_path)
 
 def test_tokens_accumulate_across_batches(tmp_path):
     result = run(_big_book(), ENTRIES, INSTR, Cache(tmp_path), FakeClient())
-    assert result.tokens == 50
+    assert result.tokens == 51   # _big_book(n=51); FakeClient reports len(texts) per batch
 ```
 
 - [ ] **Step 2: Run to verify it fails**
@@ -939,19 +939,74 @@ git commit -m "refactor: drop the uploaded-glossary plumbing"
 
 - [ ] **Step 1: Write the failing tests**
 
-In `tests/test_cli.py`, rename `test_translate_dry_run_spends_nothing_and_prints_the_preflight` to `test_translate_dry_run_spends_nothing_and_prints_the_pending_count` and assert the new output, with no `remaining` and no `fits`:
+`tests/test_cli.py` currently has two DeepL-specific tests. Replace both in
+full — the fixtures (one sentence, `"Der Gestank."`) are unchanged; what
+changes is the env var, the path constant, the config filename, the dropped
+`usage()` method, and the output format:
 
 ```python
+def test_translate_dry_run_spends_nothing_and_prints_the_pending_count(
+        tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    monkeypatch.setattr(paths, "TRANSLATION_CACHE", tmp_path / "cache")
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
+        {"id": "T1.K01", "number": 1, "sektionen": [
+            {"id": "T1.K01.S01", "saetze": [
+                {"id": "T1.K01.S01.s001", "text": "Der Gestank."}]}]}]}]}
+    (tmp_path / "book.json").write_text(json.dumps(book), encoding="utf-8")
+
+    calls = []
+
+    class FakeClient:
+        def translate(self, *a, **kw):
+            calls.append(kw)
+            raise AssertionError("dry run must not translate")
+
+    monkeypatch.setattr(cli, "_client", lambda: FakeClient())
     assert cli.main(["translate", "--dry-run"]) == 0
+    assert calls == []
     out = capsys.readouterr().out
-    assert "pending sentences: 3" in out
+    assert "pending sentences: 1" in out
     assert "remaining" not in out and "fits" not in out
+    assert "Gestank" not in out
+
+
+def test_translate_force_dry_run_ignores_the_cache_in_its_pending_count(
+        tmp_path, monkeypatch, capsys):
+    from parfum.cache import Cache
+    from parfum.cache import key as cache_key
+    from parfum.gemini import MODEL, Translation
+
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    monkeypatch.setattr(paths, "TRANSLATION_CACHE", tmp_path / "cache")
+    monkeypatch.setattr(paths, "CONFIG", tmp_path)
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    (tmp_path / "translation_instructions.json").write_text("[]", encoding="utf-8")
+    book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
+        {"id": "T1.K01", "number": 1, "sektionen": [
+            {"id": "T1.K01.S01", "saetze": [
+                {"id": "T1.K01.S01.s001", "text": "Der Gestank."}]}]}]}]}
+    (tmp_path / "book.json").write_text(json.dumps(book), encoding="utf-8")
+
+    # Pre-populate the cache so the sentence is already translated. No
+    # config/glossary.tsv and empty instructions above match what cli._translate
+    # will load, so this is the exact key it will look up.
+    cache = Cache(tmp_path / "cache")
+    cache.put(cache_key("Der Gestank.", [], MODEL, []),
+              Translation("The stench.", MODEL))
+
+    class FakeClient:
+        def translate(self, *a, **kw):
+            raise AssertionError("dry run must not translate")
+
+    monkeypatch.setattr(cli, "_client", lambda: FakeClient())
+    assert cli.main(["translate", "--force", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "pending sentences: 1" in out
 ```
 
-Rename `test_translate_force_dry_run_ignores_the_cache_in_its_preflight_count`
-to `..._in_its_pending_count`, keeping its substance: with `--force`, the
-pending count ignores cache hits. Its monkeypatched client no longer needs a
-`usage()` method. Add:
+Add:
 
 ```python
 def test_glossary_upload_is_gone():
@@ -972,7 +1027,8 @@ Expected: FAIL — the old pre-flight print and the `glossary-upload` subcommand
 
 - [ ] **Step 3: Implement**
 
-In `src/parfum/cli.py`:
+In `src/parfum/cli.py`, replace the top-level import (line 11,
+`from parfum.deepl import Client as DeepLClient`):
 
 ```python
 from parfum.gemini import Client as GeminiClient
