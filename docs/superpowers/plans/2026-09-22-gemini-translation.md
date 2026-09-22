@@ -333,7 +333,7 @@ from pathlib import Path
 
 from parfum.glossary import Entry, entries_for
 
-MODEL = "gemini-3-pro"          # one-line swap to the flash id for a cheap pass
+MODEL = "gemini-3.6-flash"      # one-line swap to "gemini-3.1-pro-preview" if billing is ever enabled
 SOURCE_LANG = "German"
 TARGET_LANG = "English"
 BATCH_SENTENCES = 20

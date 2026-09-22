@@ -49,7 +49,7 @@ No new dependency. `httpx` is already a project dependency and the REST endpoint
 is one URL, so the `google-genai` SDK is not introduced.
 
 ```
-MODEL = "gemini-3-pro"          # one-line swap to "gemini-3-flash"
+MODEL = "gemini-3.6-flash"      # one-line swap to "gemini-3.1-pro-preview" if billing is ever enabled
 SOURCE_LANG / TARGET_LANG       # retained, used in the prompt text
 BATCH_SENTENCES = 20
 MAX_INSTRUCTIONS = 10           # retained: a project convention, not a DeepL limit
@@ -134,10 +134,10 @@ cached and returned, `stopped_at` names where it halted, and re-running resumes.
 
 `cache.key(sentence, entries, model, instructions)` — the third parameter is
 renamed from `model_type` and now receives `MODEL`, the literal model string.
-Consequence, and the reason the model belongs in a constant: switching to
-`gemini-3-flash` partitions the cache rather than blending two models' prose
-under one set of hashes. A final `gemini-3-pro` pass can reuse nothing from a
-flash pass, which is correct.
+Consequence, and the reason the model belongs in a constant: switching models
+partitions the cache rather than blending two models' prose under one set of
+hashes. A future `gemini-3.1-pro-preview` pass (were billing ever enabled)
+could reuse nothing from a `gemini-3.6-flash` pass, which is correct.
 
 The cache directory is empty today, so renaming both the directory and the
 stored JSON field names costs nothing and invalidates nothing.
@@ -154,7 +154,7 @@ review.
 | `tests/test_deepl_request.py` | `tests/test_gemini_request.py` | follows the module |
 | `paths.DEEPL_CACHE` = `cache/deepl` | `paths.TRANSLATION_CACHE` = `cache/translation` | the cache is keyed by model, so it is a translation cache, not a provider cache |
 | `config/deepl_instructions.json` | `config/translation_instructions.json` | contents are provider-neutral prose rules |
-| `MODEL_TYPE = "quality_optimized"` | `MODEL = "gemini-3-pro"` | a model name, not a DeepL tier |
+| `MODEL_TYPE = "quality_optimized"` | `MODEL = "gemini-3.6-flash"` | a model name, not a DeepL tier |
 | `Translation.billed_characters` | `Translation.tokens` | Gemini bills tokens; characters were DeepL's unit |
 | `Translation.model_type_used` | `Translation.model` | echoes the model actually used |
 | `Result.billed` | `Result.tokens` | follows the field |
@@ -181,11 +181,15 @@ therefore more worth measuring.
 
 ## 9. Model choice and determinism
 
-`MODEL = "gemini-3-pro"` is the default, on the free tier, as a module constant
-that is a one-line edit to `"gemini-3-flash"` for cheap bulk or exploratory
-passes. `temperature: 0` reduces variance but does not make the API bit-stable;
-the cache is what makes re-runs stable, because the second run reads hashes
-rather than calling the API.
+`MODEL = "gemini-3.6-flash"` is the default: the only model reachable at all
+on a free-tier key (confirmed by Task 1's live probe — every pro-lineage model
+returns `429 RESOURCE_EXHAUSTED` with `limit: 0` for a project without billing
+enabled). It stays a module constant, one-line-swappable to
+`"gemini-3.1-pro-preview"` if billing is ever enabled later — that model id is
+still a `-preview` release, not stable, so it is not the default even for a
+paid project without a further decision. `temperature: 0` reduces variance but
+does not make the API bit-stable; the cache is what makes re-runs stable,
+because the second run reads hashes rather than calling the API.
 
 ## 10. Testing
 
@@ -249,10 +253,17 @@ invariant and end-to-end tests must be green before and after.
 
 - The Gemini REST surface used here (endpoint path, `x-goog-api-key`,
   `systemInstruction`, `generationConfig.responseSchema`,
-  `usageMetadata.*TokenCount`, error codes) is to be confirmed against current
-  Google documentation in the first task of the implementation plan, before any
-  code depends on a field name.
-- `gemini-3-pro` is the intended model id, taken from the
-  brainstorm decision.
+  `usageMetadata.*TokenCount`, error codes) was confirmed via a live probe in
+  the first task of the implementation plan (2026-09-22): the request shape in
+  §3.1 works as written, and `usageMetadata` carries three additional keys
+  beyond `*TokenCount` (`promptTokensDetails`, `thoughtsTokenCount`,
+  `serviceTier`) that this spec does not otherwise use.
+- **Superseded:** the brainstorm's `gemini-3-pro` decision does not exist as a
+  model id, and no pro-lineage model is reachable on a free-tier key at all —
+  it returns `429 RESOURCE_EXHAUSTED` with `limit: 0`, a structural quota
+  block, not a transient rate limit. Revised per the plan owner's decision on
+  2026-09-22: `MODEL = "gemini-3.6-flash"` (see §3, §6, §9) — free-tier only,
+  no billing, matching the "completely free" constraint. `gemini-3.1-pro-preview`
+  is the swap target if billing is ever enabled, not a default.
 - The rename table in §7 is a restatement of the brainstorm, expanded to the
   field level; it is the one part of this spec most likely to need correction.
