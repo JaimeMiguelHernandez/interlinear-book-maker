@@ -1,4 +1,4 @@
-"""Stage 4. Deterministic: pre-flight, batch, cache, call, checkpoint."""
+"""Stage 4. Deterministic: batch, cache, call, checkpoint."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from parfum.cache import Cache, key
-from parfum.deepl import (MODEL_TYPE, QuotaExceeded, TransportError,
-                          build_batches, preflight)
+from parfum.gemini import (MODEL, AlignmentError, TransportError,
+                           build_batches)
 from parfum.glossary import Entry
 from parfum.model import Book
 
@@ -18,7 +18,7 @@ class Result:
     translated: dict[str, str] = field(default_factory=dict)
     from_cache: int = 0
     from_api: int = 0
-    billed: int = 0
+    tokens: int = 0
     stopped_at: str | None = None
 
 
@@ -30,11 +30,11 @@ def context_for(book: Book, satz_id: str, window: int = 2) -> str:
 
 
 def run(book: Book, entries: list[Entry], instructions: list[str],
-        cache: Cache, client, glossary_id: str | None, *,
-        scope: str | None = None, force: bool = False) -> Result:
+        cache: Cache, client, *, scope: str | None = None,
+        force: bool = False) -> Result:
     saetze = [s for s in book.iter_saetze()
               if scope is None or s.id.startswith(scope)]
-    keys = {s.id: key(s.text, entries, MODEL_TYPE, instructions) for s in saetze}
+    keys = {s.id: key(s.text, entries, MODEL, instructions) for s in saetze}
 
     result = Result()
     pending = []
@@ -49,29 +49,22 @@ def run(book: Book, entries: list[Entry], instructions: list[str],
     if not pending:
         return result
 
-    check = preflight([s.text for s in pending], client.usage())
-    if not check.fits:
-        raise RuntimeError(
-            f"pre-flight: {check.pending_sentences} sentences need "
-            f"{check.pending_characters} characters, {check.remaining} remain"
-        )
-
     for batch in build_batches([s.text for s in pending]):
         group = [pending[i] for i in batch]
         try:
-            outputs = client.translate(
+            outputs, tokens = client.translate(
                 [s.text for s in group],
                 context=context_for(book, group[0].id),
-                glossary_id=glossary_id,
+                entries=entries,
                 instructions=instructions,
             )
-        except (QuotaExceeded, TransportError) as exc:
+        except (TransportError, AlignmentError) as exc:
             result.stopped_at = f"{group[0].id}: {exc}"
             return result
+        result.tokens += tokens
         for satz, translation in zip(group, outputs):
             cache.put(keys[satz.id], translation)
             result.translated[satz.id] = translation.text
-            result.billed += translation.billed_characters
             result.from_api += 1
     return result
 
