@@ -6,18 +6,18 @@ import hashlib
 import json
 from pathlib import Path
 
-from parfum.deepl import Translation
+from parfum.gemini import Translation
 from parfum.glossary import Entry, entries_for
 
 
-def key(sentence: str, entries: list[Entry], model_type: str,
+def key(sentence: str, entries: list[Entry], model: str,
         instructions: list[str]) -> str:
-    """sha256(sentence + the entries occurring in it + model_type + instructions)."""
+    """sha256(sentence + the entries occurring in it + model + instructions)."""
     relevant = entries_for(sentence, entries)
     material = json.dumps({
         "sentence": sentence,
         "glossary": [[e.source, e.target] for e in relevant],
-        "model_type": model_type,
+        "model": model,
         "instructions": instructions,
     }, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
@@ -44,7 +44,3 @@ class Cache:
         tmp.write_text(json.dumps(translation.__dict__, ensure_ascii=False),
                        encoding="utf-8")
         tmp.replace(path)                      # atomic; a kill cannot half-write
-
-    def billed_total(self) -> int:
-        return sum(json.loads(p.read_text(encoding="utf-8"))["billed_characters"]
-                   for p in self.root.rglob("*.json"))
