@@ -1,0 +1,11 @@
+# Claude Code local settings
+settings.local.json
+
+# Worktrees and agent memory
+worktrees/
+agent-memory/
+tasks/
+
+# Headroom local wrap files
+.headroom_*
+

@@ -1,0 +1,9 @@
+description = "Run pytest with optional arguments"
+
+prompt = """
+# Run Pytest
+
+Execute test suite:
+!{uv run pytest {{args}}}
+"""
+

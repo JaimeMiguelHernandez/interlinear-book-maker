@@ -1,0 +1,16 @@
+description = "Run parfum concatenation check and pytest suite"
+
+prompt = """
+# Verification Battery
+
+Run the concatenation invariant check and test suite:
+
+1. Check concatenation invariant:
+!{uv run parfum check}
+
+2. Run pytest suite:
+!{uv run pytest}
+
+Report the outcome concisely. If tests failed or invariant broke, identify the exact root cause and minimal surgical fix.
+"""
+

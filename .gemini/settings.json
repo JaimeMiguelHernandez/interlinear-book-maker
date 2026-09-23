@@ -1,0 +1,27 @@
+{
+  "$schema": "https://raw.githubusercontent.com/google-gemini/gemini-cli/main/packages/cli/src/config/settings-schema.json",
+  "theme": "Default",
+  "selectedAuthType": "oauth-personal",
+  "checkpointing": true,
+  "autoAccept": false,
+  "showMemoryUsage": true,
+  "contextFileName": "GEMINI.md",
+  "fileFiltering": {
+    "respectGitIgnore": true,
+    "respectGeminiIgnore": true,
+    "enableRecursiveFileSearch": true
+  },
+  "allowedTools": [
+    "ReadFile",
+    "ReadManyFiles",
+    "Glob",
+    "Grep",
+    "WebFetch(domain:*.github.com)"
+  ],
+  "mcpServers": {
+    "supermemory": {
+      "url": "https://mcp.supermemory.ai/mcp"
+    }
+  }
+}
+
