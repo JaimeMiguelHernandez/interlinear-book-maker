@@ -109,3 +109,31 @@ def test_backoff_sleeps_between_attempts():
     Client("k", transport, sleep=slept.append).translate(
         ["Der Gestank."], context=None, entries=[], instructions=[])
     assert len(slept) == 1 and slept[0] > 0
+
+
+def _quota_429(quota_id, retry_delay="37s"):
+    return FakeResponse(429, {"error": {"status": "RESOURCE_EXHAUSTED", "details": [
+        {"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+         "violations": [{"quotaId": quota_id, "quotaValue": "20"}]},
+        {"@type": "type.googleapis.com/google.rpc.RetryInfo",
+         "retryDelay": retry_delay},
+    ]}})
+
+
+def test_a_daily_quota_429_is_not_retried():
+    transport = Recorder(
+        _quota_429("GenerateRequestsPerDayPerProjectPerModel-FreeTier"))
+    with pytest.raises(TransportError, match="daily quota.*429"):
+        _client(transport).translate(["Der Gestank."], context=None, entries=[],
+                                     instructions=[])
+    assert len(transport.calls) == 1
+
+
+def test_a_per_minute_429_waits_the_server_retry_delay():
+    slept = []
+    transport = Recorder(
+        _quota_429("GenerateRequestsPerMinutePerProjectPerModel-FreeTier", "37s"),
+        _ok([{"id": 1, "english": "The stench."}]))
+    Client("k", transport, sleep=slept.append).translate(
+        ["Der Gestank."], context=None, entries=[], instructions=[])
+    assert slept == [37.0]

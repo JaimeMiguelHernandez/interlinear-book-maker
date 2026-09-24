@@ -131,6 +131,27 @@ def _is_retryable(status_code: int) -> bool:
     return status_code == 429 or 500 <= status_code < 600
 
 
+def _error_details(response) -> list[dict]:
+    try:
+        return response.json().get("error", {}).get("details", [])
+    except ValueError:
+        return []
+
+
+def _is_daily_quota(details: list[dict]) -> bool:
+    """RPD resets at midnight Pacific; retrying within this run cannot help."""
+    return any("PerDay" in v.get("quotaId", "")
+               for d in details for v in d.get("violations", []))
+
+
+def _retry_delay(details: list[dict]) -> float | None:
+    """The server's own RetryInfo wait, e.g. "37s" for an RPM window."""
+    for d in details:
+        if d.get("retryDelay", "").endswith("s"):
+            return float(d["retryDelay"][:-1])
+    return None
+
+
 class Client:
     def __init__(self, api_key: str, transport, sleep=time.sleep,
                  model: str = MODEL) -> None:
@@ -152,8 +173,11 @@ class Client:
                 raise BadRequest(f"{response.status_code}: {message}")
             if not _is_retryable(response.status_code):
                 raise TransportError(f"unexpected status {response.status_code}")
+            details = _error_details(response)
+            if _is_daily_quota(details):
+                raise TransportError("Gemini daily quota exhausted (status 429)")
             if attempt < MAX_ATTEMPTS - 1:
-                self.sleep(2 ** attempt + random.random())
+                self.sleep(_retry_delay(details) or 2 ** attempt + random.random())
         raise TransportError(f"Gemini still failing after {MAX_ATTEMPTS} attempts "
                              f"(last status {response.status_code})")
 
