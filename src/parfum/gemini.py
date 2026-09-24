@@ -154,7 +154,8 @@ class Client:
                 raise TransportError(f"unexpected status {response.status_code}")
             if attempt < MAX_ATTEMPTS - 1:
                 self.sleep(2 ** attempt + random.random())
-        raise TransportError(f"Gemini still failing after {MAX_ATTEMPTS} attempts")
+        raise TransportError(f"Gemini still failing after {MAX_ATTEMPTS} attempts "
+                             f"(last status {response.status_code})")
 
     def translate(self, texts: list[str], *, context: str | None,
                   entries: list[Entry],

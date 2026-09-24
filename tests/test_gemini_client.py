@@ -79,6 +79,13 @@ def test_persistent_failure_raises_transport_error():
     assert len(transport.calls) == 5
 
 
+def test_exhausted_retries_name_the_last_status():
+    transport = Recorder(*[FakeResponse(429) for _ in range(5)])
+    with pytest.raises(TransportError, match="429"):
+        _client(transport).translate(["Der Gestank."], context=None, entries=[],
+                                     instructions=[])
+
+
 def test_a_400_is_not_retried():
     transport = Recorder(FakeResponse(400, {"error": {"message": "bad schema"}}))
     with pytest.raises(BadRequest, match="bad schema"):
