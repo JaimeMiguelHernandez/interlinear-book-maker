@@ -107,7 +107,6 @@ def test_translate_dry_run_spends_nothing_and_prints_the_pending_count(
         tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(paths, "INTERIM", tmp_path)
     monkeypatch.setattr(paths, "TRANSLATION_CACHE", tmp_path / "cache")
-    monkeypatch.setenv("GEMINI_API_KEY", "key")
     book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
         {"id": "T1.K01", "number": 1, "sektionen": [
             {"id": "T1.K01.S01", "saetze": [
@@ -135,10 +134,15 @@ def test_glossary_upload_is_gone():
         cli.main(["glossary-upload"])
 
 
-def test_client_requires_the_gemini_key(monkeypatch):
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    with pytest.raises(SystemExit, match="GEMINI_API_KEY"):
+def test_client_requires_the_claude_cli(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _name: None)
+    with pytest.raises(SystemExit, match="claude CLI not found"):
         cli._client()
+
+
+def test_client_runs_the_resolved_claude_executable(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _name: r"C:\bin\claude.CMD")
+    assert cli._client().claude == r"C:\bin\claude.CMD"
 
 
 def test_glossary_validate_rejects_an_entry_without_a_matching_sense(tmp_path, monkeypatch):
@@ -162,7 +166,6 @@ def test_translate_force_dry_run_ignores_the_cache_in_its_pending_count(
     monkeypatch.setattr(paths, "INTERIM", tmp_path)
     monkeypatch.setattr(paths, "TRANSLATION_CACHE", tmp_path / "cache")
     monkeypatch.setattr(paths, "CONFIG", tmp_path)
-    monkeypatch.setenv("GEMINI_API_KEY", "key")
     (tmp_path / "translation_instructions.json").write_text("[]", encoding="utf-8")
     book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
         {"id": "T1.K01", "number": 1, "sektionen": [

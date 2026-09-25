@@ -9,7 +9,7 @@ import sys
 
 from parfum import paths
 from parfum.extract import normalize, run_pdftotext
-from parfum.claude_cli import Client as ClaudeClient
+from parfum.claude_cli import TIMEOUT_SECONDS, Client as ClaudeClient
 from parfum.model import Book
 from parfum.segment import HI, LO, build_book, reconstruct
 
@@ -137,13 +137,19 @@ def _glossary_candidates(args) -> int:
 
 
 def _client():
-    import httpx
+    import shutil
+    import subprocess
 
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise SystemExit("GEMINI_API_KEY is not set")
-    client = httpx.Client(timeout=120.0)
-    return ClaudeClient(api_key, lambda method, url, **kw: client.request(method, url, **kw))
+    claude = shutil.which("claude")
+    if not claude:
+        raise SystemExit("claude CLI not found on PATH")
+
+    def run(argv, input):
+        done = subprocess.run(argv, input=input, capture_output=True, text=True,
+                              encoding="utf-8", timeout=TIMEOUT_SECONDS)
+        return done.returncode, done.stdout
+
+    return ClaudeClient(claude, run)
 
 
 def _load_glossary():

@@ -4,11 +4,12 @@ Daily batch runner for the 50-chapter translate -> verify -> render pipeline.
 
 Tracks completed chapters in data/interim/batch_state.json so it can be
 re-run daily (e.g. via Task Scheduler) and pick up where it left off.
-Stops for the day as soon as the API reports quota exhaustion (429).
+Stops for the day as soon as Claude reports its usage limit.
 """
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -48,13 +49,12 @@ def run_stage(stage: str, scope: str, env: dict) -> subprocess.CompletedProcess:
 
 
 def is_quota_error(stderr: str) -> bool:
-    lowered = stderr.lower()
-    return "429" in stderr or "quota" in lowered
+    return "usage limit" in stderr.lower()
 
 
 def main() -> int:
-    if not os.environ.get("GEMINI_API_KEY"):
-        print("ERROR: GEMINI_API_KEY is not set", file=sys.stderr)
+    if not shutil.which("claude"):
+        print("ERROR: claude CLI not found on PATH", file=sys.stderr)
         return 1
 
     scopes = load_scopes()
