@@ -1,8 +1,9 @@
 ---
 name: code-reviewer
 description: Reviews diffs and proposed changes against Andrej Karpathy guardrails, simplicity, and parfum project invariants.
-tools: ReadFile, Glob, Grep, Bash
-model: inherit
+tools: Read, Glob, Grep, Bash
+model: sonnet
+effort: high
 permissionMode: plan
 ---
 
