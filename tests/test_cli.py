@@ -30,6 +30,20 @@ def test_check_passes_on_a_consistent_corpus(tmp_path, monkeypatch, capsys):
     assert "sentences" in capsys.readouterr().out
 
 
+def test_check_fails_on_a_sentence_without_letters(tmp_path, monkeypatch, capsys):
+    seed(tmp_path, monkeypatch)
+    cli.main(["segment"])
+    path = tmp_path / "book.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    saetze = data["teile"][0]["kapitel"][0]["sektionen"][0]["saetze"]
+    last = saetze[-1]
+    last["text"] = last["text"][:-1]              # move the final mark into
+    saetze.append({"id": last["id"] + "x", "text": "."})   # a sentence of its own
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert cli.main(["check"]) == 1
+    assert "1 sentence(s) without letters" in capsys.readouterr().err
+
+
 def test_check_never_prints_book_text(tmp_path, monkeypatch, capsys):
     seed(tmp_path, monkeypatch)
     cli.main(["segment"])

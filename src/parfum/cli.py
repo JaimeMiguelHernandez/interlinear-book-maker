@@ -85,6 +85,9 @@ def _check(_args) -> int:
         problems.append(f"chapter sequence irregular ({len(chapters)} chapters found)")
     if not sizes:
         problems.append("no Sektionen were produced")
+    letterless = sum(1 for s in book.iter_saetze() if not any(c.isalpha() for c in s.text))
+    if letterless:
+        problems.append(f"{letterless} sentence(s) without letters")
 
     print(f"teile: {len(book.teile)}  kapitel: {len(chapters)}  "
           f"sektionen: {len(sizes)}  sentences: {sum(sizes)}")
