@@ -4,6 +4,9 @@
 **Status:** approved in brainstorming; awaiting user review before planning
 **Supersedes:** §6.1–§6.4 and parts of §4/§5/§10 of
 `2026-09-15-parfum-interlinear-design.md` (amendment list in §11 below)
+**Superseded in part (2026-09-25):** §3 (client half), §5 and §9 by
+`2026-09-25-claude-cli-translation-design.md` — translation now runs through
+headless Claude Code.
 
 ---
 
