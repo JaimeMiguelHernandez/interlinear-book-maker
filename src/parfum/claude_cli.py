@@ -1,29 +1,36 @@
-"""Translation request building (pure) and the client."""
+"""Translation request building (pure) and the headless Claude Code client."""
 
 from __future__ import annotations
 
 import json
-import random
+import os
+import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from parfum.glossary import Entry, entries_for
 
-MODEL = "gemini-3.6-flash"      # one-line swap to "gemini-3.1-pro-preview" if billing is ever enabled
+MODEL = "claude-sonnet-5"   # full ID, never an alias: it is part of the cache key
+EFFORT = "low"
 SOURCE_LANG = "German"
 TARGET_LANG = "English"
 BATCH_SENTENCES = 20
 MAX_INSTRUCTIONS = 10
 MAX_INSTRUCTION_CHARS = 300
+TIMEOUT_SECONDS = 300
+MAX_ATTEMPTS = 2
+RETRY_WAIT_SECONDS = 60
 
 RESPONSE_SCHEMA = {
-    "type": "ARRAY",
-    "items": {
-        "type": "OBJECT",
-        "properties": {"id": {"type": "INTEGER"}, "english": {"type": "STRING"}},
+    "type": "object",
+    "properties": {"rows": {"type": "array", "items": {
+        "type": "object",
+        "properties": {"id": {"type": "integer"}, "english": {"type": "string"}},
         "required": ["id", "english"],
-    },
+    }}},
+    "required": ["rows"],
 }
 
 
@@ -75,19 +82,10 @@ def _system_text(texts: list[str], entries: list[Entry], instructions: list[str]
 
 
 def build_request(texts: list[str], *, context: str | None,
-                  entries: list[Entry], instructions: list[str]) -> dict:
+                  entries: list[Entry], instructions: list[str]) -> tuple[str, str]:
+    """(system text, numbered sentences). Only the second one is book text to translate."""
     numbered = "\n".join(f"{i}. {text}" for i, text in enumerate(texts, start=1))
-    return {
-        "system_instruction": {
-            "parts": [{"text": _system_text(texts, entries, instructions, context)}]
-        },
-        "contents": [{"role": "user", "parts": [{"text": numbered}]}],
-        "generationConfig": {
-            "response_mime_type": "application/json",
-            "response_schema": RESPONSE_SCHEMA,
-            "temperature": 0,
-        },
-    }
+    return _system_text(texts, entries, instructions, context), numbered
 
 
 def parse_response(payload: dict, expected: int) -> tuple[list[Translation], int]:
@@ -96,94 +94,78 @@ def parse_response(payload: dict, expected: int) -> tuple[list[Translation], int
     Rows are placed by their id. A response that does not carry exactly the
     ids 1..expected, once each, is not trustworthy at any position.
     """
-    try:
-        text = payload["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError) as exc:
-        raise AlignmentError(f"no candidate text in the response: {exc}") from exc
-    try:
-        rows = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise AlignmentError(f"response was not JSON: {exc}") from exc
+    rows = (payload.get("structured_output") or {}).get("rows")
+    if not isinstance(rows, list):
+        raise AlignmentError("no structured_output rows in the response")
 
-    ids = [row.get("id") for row in rows] if isinstance(rows, list) else []
+    ids = [row.get("id") for row in rows]
     if sorted(ids) != list(range(1, expected + 1)):
         raise AlignmentError(f"expected ids 1..{expected}, got {sorted(ids)}")
 
     by_id = {row["id"]: row["english"] for row in rows}
-    tokens = payload.get("usageMetadata", {}).get("totalTokenCount", 0)
+    usage = payload.get("usage", {})
+    tokens = sum(usage.get(k, 0) for k in (
+        "input_tokens", "cache_creation_input_tokens",
+        "cache_read_input_tokens", "output_tokens"))
     return [Translation(by_id[i], MODEL) for i in range(1, expected + 1)], tokens
-
-
-BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-MAX_ATTEMPTS = 5
 
 
 class TransportError(RuntimeError):
     """Retries are spent. Checkpoint and stop."""
 
 
-class BadRequest(RuntimeError):
-    """400/401/403 — a bad key, model, or body. Retrying cannot help."""
-
-
-def _is_retryable(status_code: int) -> bool:
-    """429 (RPM/RPD) and any 5xx get exponential backoff (spec §5)."""
-    return status_code == 429 or 500 <= status_code < 600
-
-
-def _error_details(response) -> list[dict]:
-    try:
-        return response.json().get("error", {}).get("details", [])
-    except ValueError:
-        return []
-
-
-def _is_daily_quota(details: list[dict]) -> bool:
-    """RPD resets at midnight Pacific; retrying within this run cannot help."""
-    return any("PerDay" in v.get("quotaId", "")
-               for d in details for v in d.get("violations", []))
-
-
-def _retry_delay(details: list[dict]) -> float | None:
-    """The server's own RetryInfo wait, e.g. "37s" for an RPM window."""
-    for d in details:
-        if d.get("retryDelay", "").endswith("s"):
-            return float(d["retryDelay"][:-1])
-    return None
-
-
 class Client:
-    def __init__(self, api_key: str, transport, sleep=time.sleep,
+    def __init__(self, claude: str, run, sleep=time.sleep,
                  model: str = MODEL) -> None:
-        self.api_key = api_key
-        self.transport = transport
+        self.claude = claude
+        self.run = run
         self.sleep = sleep
         self.model = model
 
-    def _send(self, body: dict) -> dict:
-        url = f"{BASE_URL}/models/{self.model}:generateContent"
-        headers = {"x-goog-api-key": self.api_key,
-                   "Content-Type": "application/json"}
+    def _argv(self, system_file: str) -> list[str]:
+        return [self.claude, "-p", "--model", self.model, "--effort", EFFORT,
+                "--system-prompt-file", system_file, "--tools", "",
+                "--strict-mcp-config", "--setting-sources", "",
+                "--disable-slash-commands", "--no-session-persistence",
+                "--output-format", "json",
+                "--json-schema", json.dumps(RESPONSE_SCHEMA)]
+
+    def _call(self, argv: list[str], numbered: str) -> dict:
         for attempt in range(MAX_ATTEMPTS):
-            response = self.transport("POST", url, headers=headers, json=body)
-            if response.status_code == 200:
-                return response.json()
-            if response.status_code in (400, 401, 403):
-                message = response.json().get("error", {}).get("message", "")
-                raise BadRequest(f"{response.status_code}: {message}")
-            if not _is_retryable(response.status_code):
-                raise TransportError(f"unexpected status {response.status_code}")
-            details = _error_details(response)
-            if _is_daily_quota(details):
-                raise TransportError("Gemini daily quota exhausted (status 429)")
+            try:
+                returncode, stdout = self.run(argv, input=numbered)
+            except subprocess.TimeoutExpired:
+                failure = f"no reply within {TIMEOUT_SECONDS}s"
+            else:
+                try:
+                    payload = json.loads(stdout)
+                except json.JSONDecodeError:
+                    raise TransportError(
+                        f"claude -p exited {returncode}: {stdout[:200]}") from None
+                if returncode == 0 and not payload.get("is_error"):
+                    return payload
+                status = payload.get("api_error_status") or 0
+                message = str(payload.get("result", ""))[:200]
+                if status == 429 or "limit" in message.lower():
+                    raise TransportError(f"Claude usage limit reached: {message}")
+                if status < 500:
+                    raise TransportError(f"claude -p failed: {message}")
+                failure = f"status {status}: {message}"
             if attempt < MAX_ATTEMPTS - 1:
-                self.sleep(_retry_delay(details) or 2 ** attempt + random.random())
-        raise TransportError(f"Gemini still failing after {MAX_ATTEMPTS} attempts "
-                             f"(last status {response.status_code})")
+                self.sleep(RETRY_WAIT_SECONDS)
+        raise TransportError(f"claude -p still failing after {MAX_ATTEMPTS} "
+                             f"attempts ({failure})")
 
     def translate(self, texts: list[str], *, context: str | None,
                   entries: list[Entry],
                   instructions: list[str]) -> tuple[list[Translation], int]:
-        body = build_request(texts, context=context, entries=entries,
-                             instructions=instructions)
-        return parse_response(self._send(body), len(texts))
+        system, numbered = build_request(texts, context=context, entries=entries,
+                                         instructions=instructions)
+        fd, system_file = tempfile.mkstemp(suffix=".txt")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(system)
+            payload = self._call(self._argv(system_file), numbered)
+        finally:
+            os.unlink(system_file)
+        return parse_response(payload, len(texts))
