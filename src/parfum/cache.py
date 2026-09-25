@@ -6,7 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from parfum.gemini import Translation
+from parfum.claude_cli import Translation
 from parfum.glossary import Entry, entries_for
 
 

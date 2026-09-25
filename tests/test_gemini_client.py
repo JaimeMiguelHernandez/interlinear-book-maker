@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from parfum.gemini import (BASE_URL, MODEL, BadRequest, Client, TransportError)
+from parfum.claude_cli import (BASE_URL, MODEL, BadRequest, Client, TransportError)
 
 
 class FakeResponse:

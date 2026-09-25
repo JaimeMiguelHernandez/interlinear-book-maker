@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from parfum.gemini import (MAX_INSTRUCTION_CHARS, MAX_INSTRUCTIONS, MODEL,
+from parfum.claude_cli import (MAX_INSTRUCTION_CHARS, MAX_INSTRUCTIONS, MODEL,
                            AlignmentError, Translation, build_batches,
                            build_request, load_instructions, parse_response)
 from parfum.glossary import Entry

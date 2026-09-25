@@ -1,5 +1,5 @@
 from parfum.ab import Divergence, compare, report
-from parfum.gemini import MODEL, Translation
+from parfum.claude_cli import MODEL, Translation
 from parfum.glossary import Entry
 from parfum.model import Book, Kapitel, Satz, Sektion, Teil
 

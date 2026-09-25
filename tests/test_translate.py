@@ -1,7 +1,7 @@
 import json
 
 from parfum.cache import Cache, key
-from parfum.gemini import MODEL, AlignmentError, TransportError, Translation
+from parfum.claude_cli import MODEL, AlignmentError, TransportError, Translation
 from parfum.glossary import Entry
 from parfum.model import Book, Kapitel, Satz, Sektion, Teil
 from parfum.translate import context_for, run, write_translated

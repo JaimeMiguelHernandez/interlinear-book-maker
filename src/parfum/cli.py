@@ -9,7 +9,7 @@ import sys
 
 from parfum import paths
 from parfum.extract import normalize, run_pdftotext
-from parfum.gemini import Client as GeminiClient
+from parfum.claude_cli import Client as ClaudeClient
 from parfum.model import Book
 from parfum.segment import HI, LO, build_book, reconstruct
 
@@ -143,7 +143,7 @@ def _client():
     if not api_key:
         raise SystemExit("GEMINI_API_KEY is not set")
     client = httpx.Client(timeout=120.0)
-    return GeminiClient(api_key, lambda method, url, **kw: client.request(method, url, **kw))
+    return ClaudeClient(api_key, lambda method, url, **kw: client.request(method, url, **kw))
 
 
 def _load_glossary():
@@ -173,7 +173,7 @@ def _glossary_validate(_args) -> int:
 
 def _glossary_ab(args) -> int:
     from parfum.ab import compare, report
-    from parfum.gemini import load_instructions
+    from parfum.claude_cli import load_instructions
 
     book = _read_book()
     diffs = compare(book, _load_glossary(),
@@ -187,7 +187,7 @@ def _glossary_ab(args) -> int:
 def _translate(args) -> int:
     from parfum.cache import Cache
     from parfum.cache import key as cache_key
-    from parfum.gemini import MODEL, load_instructions
+    from parfum.claude_cli import MODEL, load_instructions
     from parfum.translate import run, write_translated
 
     book = _read_book()

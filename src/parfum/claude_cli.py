@@ -1,4 +1,4 @@
-"""Gemini request building (pure) and the HTTP client."""
+"""Translation request building (pure) and the client."""
 
 from __future__ import annotations
 

@@ -157,7 +157,7 @@ def test_translate_force_dry_run_ignores_the_cache_in_its_pending_count(
         tmp_path, monkeypatch, capsys):
     from parfum.cache import Cache
     from parfum.cache import key as cache_key
-    from parfum.gemini import MODEL, Translation
+    from parfum.claude_cli import MODEL, Translation
 
     monkeypatch.setattr(paths, "INTERIM", tmp_path)
     monkeypatch.setattr(paths, "TRANSLATION_CACHE", tmp_path / "cache")

@@ -1,5 +1,5 @@
 from parfum.cache import Cache, key
-from parfum.gemini import MODEL, Translation
+from parfum.claude_cli import MODEL, Translation
 from parfum.glossary import Entry
 
 ENTRIES = [Entry("Gestank", "stench", "w: stench"),
