@@ -35,6 +35,16 @@ def test_rejoins_line_end_hyphen_without_a_space():
     assert result.hyphen_joins == 1
 
 
+def test_closes_stray_space_inside_ch():
+    """The PDF's text layer splits "ch" with a space in 21 words ("nic ht")."""
+    assert normalize("Er war es nic ht, sagte ic h.").text == "Er war es nicht, sagte ich."
+
+
+def test_ch_rule_keeps_the_space_of_a_page_join():
+    """"Alambic" ends a page before "hervor"; that space is a real word break."""
+    assert normalize("aus dem Alambic\nhervor.").text == "aus dem Alambic hervor."
+
+
 def test_paragraphs_survive_as_whole_lines():
     lines = normalized().text.split("\n")
     assert "ERSTER TEIL" in lines

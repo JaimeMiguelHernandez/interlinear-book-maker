@@ -34,6 +34,11 @@ MARKER_START = re.compile(r"^\d{1,2}\s*[A-ZÄÖÜ»]")
 # Anything else is a continuation carried over a page break.
 _TERMINAL = (".", "!", "?", "…", "«", "»", '"', ":", ";")
 
+# The PDF's text layer puts a space inside "ch" in 21 words ("nic ht", "ic h").
+# Applied per pdftotext line, before page joins, so "Alambic" ending a page
+# before "hervor" keeps its space. No other line in the book holds "c h".
+SPLIT_CH = re.compile(r"(?<=\w)c h")
+
 
 @dataclass
 class Normalized:
@@ -71,7 +76,7 @@ def normalize(raw: str) -> Normalized:
             line = line.lstrip("\f")
             page_start_lines.append(len(lines))
 
-        stripped = line.strip()
+        stripped = SPLIT_CH.sub("ch", line.strip())
         is_page_number = PAGE_NUMBER.fullmatch(stripped)
         if not stripped or is_page_number:
             if is_page_number:
