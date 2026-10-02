@@ -369,6 +369,31 @@ def test_publish_success_and_ledger_written(tmp_path, monkeypatch, capsys):
     assert data["T1.K01.S01"]["page_id"] == "page-123"
 
 
+def test_publish_refuses_incomplete_translations(tmp_path, monkeypatch, capsys):
+    """`translate --scope` overwrites translated.json with one chapter; publishing
+    that would blank the English column of every other page in Notion."""
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    monkeypatch.setattr(paths, "OUTPUT", tmp_path / "output")
+    monkeypatch.setenv("NOTION_API_KEY", "key")
+    monkeypatch.setenv("NOTION_PARENT_ID", "parent-1")
+
+    book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
+        {"id": "T1.K01", "number": 1, "sektionen": [
+            {"id": "T1.K01.S01", "saetze": [
+                {"id": "T1.K01.S01.s001", "text": "Der Gestank."}]}]}]}]}
+    (tmp_path / "book.json").write_text(json.dumps(book), encoding="utf-8")
+    (tmp_path / "translated.json").write_text("{}", encoding="utf-8")
+
+    class FakeClient:
+        def create_page(self, *a, **kw):
+            raise AssertionError("must not reach Notion with missing translations")
+
+    monkeypatch.setattr(cli, "_notion_client", lambda k, p: FakeClient())
+    assert cli.main(["publish"]) == 1
+    assert "translate" in capsys.readouterr().err
+    assert not (tmp_path / "output" / "published.json").exists()
+
+
 def test_publish_never_prints_book_text(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(paths, "INTERIM", tmp_path)
     monkeypatch.setattr(paths, "OUTPUT", tmp_path / "output")

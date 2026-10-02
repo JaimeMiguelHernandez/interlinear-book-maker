@@ -305,6 +305,14 @@ def _publish(args) -> int:
     with open(translated_path, encoding="utf-8") as handle:
         translated = json.load(handle)
 
+    from parfum.verify import verify
+
+    result = verify(book, translated, scope=args.scope)
+    if not result.is_valid:
+        print(f"ERROR: translated.json fails verify ({len(result.flags)} flags). "
+              "Run 'parfum translate' without --scope, then 'parfum verify'.", file=sys.stderr)
+        return 1
+
     ledger_path = paths.OUTPUT / "published.json"
     ledger = PublishedLedger.load(ledger_path)
     client = _notion_client(api_key, parent_id)
