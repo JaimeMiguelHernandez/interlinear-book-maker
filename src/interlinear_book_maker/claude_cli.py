@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from parfum.glossary import Entry, entries_for
+from interlinear_book_maker.glossary import Entry, entries_for
 
 MODEL = "claude-sonnet-5"   # full ID, never an alias: it is part of the cache key
 EFFORT = "low"

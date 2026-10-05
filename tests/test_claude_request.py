@@ -3,11 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from parfum.claude_cli import (MAX_INSTRUCTION_CHARS, MAX_INSTRUCTIONS, MODEL,
+from interlinear_book_maker.claude_cli import (MAX_INSTRUCTION_CHARS, MAX_INSTRUCTIONS, MODEL,
                                RESPONSE_SCHEMA, AlignmentError, Translation,
                                build_batches, build_request, load_instructions,
                                parse_response)
-from parfum.glossary import Entry
+from interlinear_book_maker.glossary import Entry
 
 ENTRIES = [Entry("Gestank", "stench", "w: stench"),
            Entry("Gerber", "tanner", "w: tanner")]

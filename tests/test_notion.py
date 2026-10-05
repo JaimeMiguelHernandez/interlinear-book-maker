@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from parfum.model import Satz, Sektion
-from parfum.notion import (
+from interlinear_book_maker.model import Satz, Sektion
+from interlinear_book_maker.notion import (
     NotionClient,
     NotionError,
     build_header_row,

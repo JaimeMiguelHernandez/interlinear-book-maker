@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from parfum.extract import normalize, run_pdftotext
+from interlinear_book_maker.extract import normalize, run_pdftotext
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mini_book.txt"
 
@@ -87,7 +87,7 @@ def test_run_pdftotext_returns_character_count_not_text(tmp_path):
 
     known_content = "Hello, World!"
 
-    with patch("parfum.extract.subprocess.run") as mock_run:
+    with patch("interlinear_book_maker.extract.subprocess.run") as mock_run:
         # Write known content to destination after the fake subprocess runs
         mock_run.side_effect = lambda *args, **kwargs: dest_path.write_text(
             known_content, encoding="utf-8"

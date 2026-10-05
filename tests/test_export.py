@@ -2,8 +2,8 @@ import subprocess
 import xml.etree.ElementTree as ET
 import zipfile
 
-from parfum.export import TEIL_HEADINGS, write_epub, write_pdf
-from parfum.model import Book, Kapitel, Satz, Sektion, Teil
+from interlinear_book_maker.export import TEIL_HEADINGS, write_epub, write_pdf
+from interlinear_book_maker.model import Book, Kapitel, Satz, Sektion, Teil
 
 XHTML = "{http://www.w3.org/1999/xhtml}"
 

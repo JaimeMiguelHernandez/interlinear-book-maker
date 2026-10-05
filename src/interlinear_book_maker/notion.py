@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any, Callable
 
-from parfum.model import Sektion
+from interlinear_book_maker.model import Sektion
 
 
 class NotionError(Exception):

@@ -6,8 +6,8 @@ import zipfile
 from html import escape
 from pathlib import Path
 
-from parfum.model import Book, Kapitel
-from parfum.structure import _TEIL_NUMBER
+from interlinear_book_maker.model import Book, Kapitel
+from interlinear_book_maker.structure import _TEIL_NUMBER
 
 TITLE = "Das Parfum"
 FONTS = Path(__file__).parent / "fonts"

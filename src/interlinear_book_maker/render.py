@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-from parfum.model import Book, Sektion
+from interlinear_book_maker.model import Book, Sektion
 
 
 class RenderStatus(Enum):

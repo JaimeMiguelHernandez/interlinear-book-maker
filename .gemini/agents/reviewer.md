@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Reviews code changes against Andrej Karpathy simplicity, surgical edits, and parfum invariants
+description: Reviews code changes against Andrej Karpathy simplicity, surgical edits, and project invariants
 tools:
   - ReadFile
   - ReadManyFiles
@@ -16,7 +16,7 @@ Evaluate changes against:
    - Is the solution minimal and simple?
    - Are changes surgical, touching only what is required?
    - Is there any unsolicited refactoring?
-2. **Parfum Invariants**:
+2. **Project Invariants**:
    - Is the Concatenation Invariant preserved?
    - Are book segments kept safe and gitignored?
 3. **Tests**:

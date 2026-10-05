@@ -16,9 +16,9 @@ gitignored, and the output is not for distribution.
 ## Stages 1–2
 
     cp "<the book>.pdf" data/raw/
-    uv run parfum extract    # -> data/interim/raw.txt, pagemap.json
-    uv run parfum segment    # -> data/interim/book.json
-    uv run parfum check      # verifies the concatenation invariant
+    uv run interlinear-book-maker extract    # -> data/interim/raw.txt, pagemap.json
+    uv run interlinear-book-maker segment    # -> data/interim/book.json
+    uv run interlinear-book-maker check      # verifies the concatenation invariant
 
     uv run pytest
 

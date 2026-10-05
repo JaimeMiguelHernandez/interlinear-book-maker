@@ -1,10 +1,10 @@
 ---
 paths:
-  - "src/parfum/**"
+  - "src/interlinear_book_maker/**"
   - "tests/**"
 ---
 
-# Parfum Core Invariants & Engineering Rules
+# Core Invariants & Engineering Rules
 
 When touching pipeline code or tests in this repository, the following domain rules apply:
 
@@ -12,13 +12,13 @@ When touching pipeline code or tests in this repository, the following domain ru
 - Every segment in `book.json` contains German text that, when joined, must reconstitute `raw.txt` byte-for-byte without alteration.
 - Always verify after making changes to parser, segmentation, or cleaner logic:
   ```bash
-  uv run parfum check
+  uv run interlinear-book-maker check
   ```
 
 ## 2. Test-Driven Development (TDD)
 - When fixing an issue or adding a segmentation rule:
   1. Add a test in `tests/` reproducing the case (Red).
-  2. Implement the minimum surgical fix in `src/parfum/` (Green).
+  2. Implement the minimum surgical fix in `src/interlinear_book_maker/` (Green).
   3. Ensure all tests pass: `uv run pytest`.
 
 ## 3. Data Integrity & Copyright

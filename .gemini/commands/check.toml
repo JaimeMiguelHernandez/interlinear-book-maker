@@ -1,4 +1,4 @@
-description = "Run parfum concatenation check and pytest suite"
+description = "Run the concatenation check and pytest suite"
 
 prompt = """
 # Verification Battery
@@ -6,7 +6,7 @@ prompt = """
 Run the concatenation invariant check and test suite:
 
 1. Check concatenation invariant:
-!{uv run parfum check}
+!{uv run interlinear-book-maker check}
 
 2. Run pytest suite:
 !{uv run pytest}

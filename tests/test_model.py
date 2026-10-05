@@ -1,4 +1,4 @@
-from parfum.model import Book, Kapitel, Satz, Sektion, Teil, satz_id
+from interlinear_book_maker.model import Book, Kapitel, Satz, Sektion, Teil, satz_id
 
 
 def tiny_book():

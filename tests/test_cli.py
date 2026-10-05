@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from parfum import cli, paths
-from parfum.extract import normalize
+from interlinear_book_maker import cli, paths
+from interlinear_book_maker.extract import normalize
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mini_book.txt"
 
@@ -70,8 +70,8 @@ class _FakeNLP:
 
 
 def test_senses_builds_the_subset_for_recurring_lemmas_only(tmp_path, monkeypatch, capsys):
-    from parfum import sentences
-    from parfum.wiktextract import Sense, load_subset
+    from interlinear_book_maker import sentences
+    from interlinear_book_maker.wiktextract import Sense, load_subset
 
     monkeypatch.setattr(paths, "INTERIM", tmp_path)
     monkeypatch.setattr(paths, "REFERENCE", tmp_path)
@@ -95,7 +95,7 @@ def test_senses_builds_the_subset_for_recurring_lemmas_only(tmp_path, monkeypatc
 
 
 def test_glossary_candidates_writes_a_tsv_and_prints_counts_only(tmp_path, monkeypatch, capsys):
-    from parfum.wiktextract import Sense, save_subset
+    from interlinear_book_maker.wiktextract import Sense, save_subset
 
     monkeypatch.setattr(paths, "INTERIM", tmp_path)
     monkeypatch.setattr(paths, "REFERENCE", tmp_path)
@@ -160,7 +160,7 @@ def test_client_runs_the_resolved_claude_executable(monkeypatch):
 
 
 def test_glossary_validate_rejects_an_entry_without_a_matching_sense(tmp_path, monkeypatch):
-    from parfum.wiktextract import Sense, save_subset
+    from interlinear_book_maker.wiktextract import Sense, save_subset
 
     monkeypatch.setattr(paths, "CONFIG", tmp_path)
     monkeypatch.setattr(paths, "REFERENCE", tmp_path)
@@ -173,9 +173,9 @@ def test_glossary_validate_rejects_an_entry_without_a_matching_sense(tmp_path, m
 
 def test_translate_force_dry_run_ignores_the_cache_in_its_pending_count(
         tmp_path, monkeypatch, capsys):
-    from parfum.cache import Cache
-    from parfum.cache import key as cache_key
-    from parfum.claude_cli import MODEL, Translation
+    from interlinear_book_maker.cache import Cache
+    from interlinear_book_maker.cache import key as cache_key
+    from interlinear_book_maker.claude_cli import MODEL, Translation
 
     monkeypatch.setattr(paths, "INTERIM", tmp_path)
     monkeypatch.setattr(paths, "TRANSLATION_CACHE", tmp_path / "cache")
@@ -441,15 +441,15 @@ def _seed_export(tmp_path, monkeypatch, english):
 def test_export_writes_the_book_file(tmp_path, monkeypatch, capsys, fmt):
     _seed_export(tmp_path, monkeypatch, "The stench.")
     assert cli.main(["export", "--format", fmt]) == 0
-    assert (tmp_path / "output" / f"parfum.{fmt}").is_file()
-    assert f"parfum.{fmt}" in capsys.readouterr().out
+    assert (tmp_path / "output" / f"edition.{fmt}").is_file()
+    assert f"edition.{fmt}" in capsys.readouterr().out
 
 
 def test_export_refuses_translation_that_fails_verify(tmp_path, monkeypatch, capsys):
     _seed_export(tmp_path, monkeypatch, "")
     assert cli.main(["export", "--format", "pdf"]) == 1
     assert "fails verify" in capsys.readouterr().err
-    assert not (tmp_path / "output" / "parfum.pdf").exists()
+    assert not (tmp_path / "output" / "edition.pdf").exists()
 
 
 def test_export_missing_translated_file(tmp_path, monkeypatch, capsys):

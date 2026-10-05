@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from parfum.extract import normalize
-from parfum.segment import build_book, reconstruct
-from parfum.structure import detect
+from interlinear_book_maker.extract import normalize
+from interlinear_book_maker.segment import build_book, reconstruct
+from interlinear_book_maker.structure import detect
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mini_book.txt"
 

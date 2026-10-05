@@ -13,7 +13,7 @@ Your responsibility is to run tests, diagnose test failures, and verify the conc
 Commands to run:
 - Run all tests: `uv run pytest`
 - Run specific test file: `uv run pytest tests/<test_file>.py`
-- Run invariant check: `uv run parfum check`
+- Run invariant check: `uv run interlinear-book-maker check`
 
 Report test results clearly:
 - Total tests run, passed, failed.

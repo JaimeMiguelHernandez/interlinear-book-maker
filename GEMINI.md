@@ -7,9 +7,9 @@ Guidance for Gemini CLI and Google Antigravity when working in the `book-editor`
 `book-editor` produces an interlinear German→English study edition of Patrick Süskind's *Das Parfum* for personal language study.
 - **Language / Runtime**: Python 3.12 managed with `uv`.
 - **Core Pipeline**:
-  - `uv run parfum extract`  -> Extracts raw text to `data/interim/raw.txt` and `pagemap.json`.
-  - `uv run parfum segment`  -> Segments text into `data/interim/book.json` via spaCy (`de_core_news_lg`).
-  - `uv run parfum check`    -> Verifies the concatenation invariant.
+  - `uv run interlinear-book-maker extract`  -> Extracts raw text to `data/interim/raw.txt` and `pagemap.json`.
+  - `uv run interlinear-book-maker segment`  -> Segments text into `data/interim/book.json` via spaCy (`de_core_news_lg`).
+  - `uv run interlinear-book-maker check`    -> Verifies the concatenation invariant.
   - `uv run pytest`          -> Executes project test suite.
 - **Critical Invariant (Concatenation Invariant)**: Reconstructing text from `book.json` segments MUST produce `raw.txt` byte-for-byte. Any code change that breaks this invariant is an immediate regression.
 - **Copyright & Text Safety**: *Das Parfum* is copyrighted. All text processing flows disk-to-disk through local files (`data/interim/`, gitignored). Never paste complete raw chapters into prompts or chat responses.
@@ -36,7 +36,7 @@ Strict psychological instructions to prevent over-engineering, hallucinated feat
 - **Match Conventions**: Follow existing repository style, type hints, and module structure.
 
 ### IV. Goal-Driven Execution
-- **Concrete Verification**: Define explicit success criteria (e.g. `uv run parfum check` passing, specific test cases green).
+- **Concrete Verification**: Define explicit success criteria (e.g. `uv run interlinear-book-maker check` passing, specific test cases green).
 - **Verify Before Finishing**: Never declare a task complete without running the relevant test suite or validation commands.
 
 ---

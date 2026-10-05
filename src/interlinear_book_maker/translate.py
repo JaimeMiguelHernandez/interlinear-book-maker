@@ -6,11 +6,11 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from parfum.cache import Cache, key
-from parfum.claude_cli import (MODEL, AlignmentError, TransportError,
+from interlinear_book_maker.cache import Cache, key
+from interlinear_book_maker.claude_cli import (MODEL, AlignmentError, TransportError,
                                 build_batches)
-from parfum.glossary import Entry
-from parfum.model import Book
+from interlinear_book_maker.glossary import Entry
+from interlinear_book_maker.model import Book
 
 
 @dataclass

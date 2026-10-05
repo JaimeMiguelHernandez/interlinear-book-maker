@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 
-from parfum.model import Book
-from parfum.wiktextract import Sense
+from interlinear_book_maker.model import Book
+from interlinear_book_maker.wiktextract import Sense
 
 MIN_COUNT = 8
 

@@ -7,11 +7,11 @@ import json
 import os
 import sys
 
-from parfum import paths
-from parfum.extract import normalize, run_pdftotext
-from parfum.claude_cli import TIMEOUT_SECONDS, Client as ClaudeClient
-from parfum.model import Book
-from parfum.segment import HI, LO, build_book, reconstruct
+from interlinear_book_maker import paths
+from interlinear_book_maker.extract import normalize, run_pdftotext
+from interlinear_book_maker.claude_cli import TIMEOUT_SECONDS, Client as ClaudeClient
+from interlinear_book_maker.model import Book
+from interlinear_book_maker.segment import HI, LO, build_book, reconstruct
 
 
 def _read_book() -> Book:
@@ -64,7 +64,7 @@ def _segment(_args) -> int:
 
 def _check(_args) -> int:
     """Verify book.json against raw.txt. Reports counts only, never book text."""
-    from parfum.structure import detect
+    from interlinear_book_maker.structure import detect
 
     text = (paths.INTERIM / "raw.txt").read_text(encoding="utf-8")
     book = _read_book()
@@ -104,9 +104,9 @@ def _check(_args) -> int:
 
 
 def _senses(args) -> int:
-    from parfum.candidates import count_lemmas, recurring
-    from parfum.sentences import load_nlp
-    from parfum.wiktextract import build_subset, save_subset
+    from interlinear_book_maker.candidates import count_lemmas, recurring
+    from interlinear_book_maker.sentences import load_nlp
+    from interlinear_book_maker.wiktextract import build_subset, save_subset
 
     book = _read_book()
     wanted = {c.lemma for c in recurring(count_lemmas(book, load_nlp()), args.min_count)}
@@ -119,9 +119,9 @@ def _senses(args) -> int:
 
 def _glossary_candidates(args) -> int:
     """Generate glossary candidates from book, filtered by frequency and sense count."""
-    from parfum.candidates import count_lemmas, monosemous, recurring
-    from parfum.sentences import load_nlp
-    from parfum.wiktextract import load_subset
+    from interlinear_book_maker.candidates import count_lemmas, monosemous, recurring
+    from interlinear_book_maker.sentences import load_nlp
+    from interlinear_book_maker.wiktextract import load_subset
 
     book = _read_book()
     senses = load_subset(paths.REFERENCE / "senses.json")
@@ -156,14 +156,14 @@ def _client():
 
 
 def _load_glossary():
-    from parfum.glossary import parse_tsv
+    from interlinear_book_maker.glossary import parse_tsv
 
     path = paths.CONFIG / "glossary.tsv"
     return parse_tsv(path.read_text(encoding="utf-8")) if path.is_file() else []
 
 
 def _glossary_validate(_args) -> int:
-    from parfum.wiktextract import load_subset
+    from interlinear_book_maker.wiktextract import load_subset
 
     entries = _load_glossary()
     senses = load_subset(paths.REFERENCE / "senses.json")
@@ -181,8 +181,8 @@ def _glossary_validate(_args) -> int:
 
 
 def _glossary_ab(args) -> int:
-    from parfum.ab import compare, report
-    from parfum.claude_cli import load_instructions
+    from interlinear_book_maker.ab import compare, report
+    from interlinear_book_maker.claude_cli import load_instructions
 
     book = _read_book()
     diffs = compare(book, _load_glossary(),
@@ -194,10 +194,10 @@ def _glossary_ab(args) -> int:
 
 
 def _translate(args) -> int:
-    from parfum.cache import Cache
-    from parfum.cache import key as cache_key
-    from parfum.claude_cli import MODEL, load_instructions
-    from parfum.translate import run, write_translated
+    from interlinear_book_maker.cache import Cache
+    from interlinear_book_maker.cache import key as cache_key
+    from interlinear_book_maker.claude_cli import MODEL, load_instructions
+    from interlinear_book_maker.translate import run, write_translated
 
     book = _read_book()
     entries = _load_glossary()
@@ -224,11 +224,11 @@ def _translate(args) -> int:
 
 
 def _verify(args) -> int:
-    from parfum.verify import verify, write_flags
+    from interlinear_book_maker.verify import verify, write_flags
 
     translated_path = paths.INTERIM / "translated.json"
     if not translated_path.is_file():
-        print(f"ERROR: {translated_path} does not exist. Run 'parfum translate' first.", file=sys.stderr)
+        print(f"ERROR: {translated_path} does not exist. Run 'interlinear-book-maker translate' first.", file=sys.stderr)
         return 1
 
     book = _read_book()
@@ -250,11 +250,11 @@ def _verify(args) -> int:
 
 
 def _render(args) -> int:
-    from parfum.render import render_book
+    from interlinear_book_maker.render import render_book
 
     translated_path = paths.INTERIM / "translated.json"
     if not translated_path.is_file():
-        print(f"ERROR: {translated_path} does not exist. Run 'parfum translate' first.", file=sys.stderr)
+        print(f"ERROR: {translated_path} does not exist. Run 'interlinear-book-maker translate' first.", file=sys.stderr)
         return 1
 
     book = _read_book()
@@ -273,12 +273,12 @@ def _render(args) -> int:
 
 
 def _export(args) -> int:
-    from parfum.export import write_epub, write_pdf
-    from parfum.verify import verify
+    from interlinear_book_maker.export import write_epub, write_pdf
+    from interlinear_book_maker.verify import verify
 
     translated_path = paths.INTERIM / "translated.json"
     if not translated_path.is_file():
-        print(f"ERROR: {translated_path} does not exist. Run 'parfum translate' first.", file=sys.stderr)
+        print(f"ERROR: {translated_path} does not exist. Run 'interlinear-book-maker translate' first.", file=sys.stderr)
         return 1
 
     book = _read_book()
@@ -288,10 +288,10 @@ def _export(args) -> int:
     result = verify(book, translated)
     if not result.is_valid:
         print(f"ERROR: translated.json fails verify ({len(result.flags)} flags). "
-              "Run 'parfum translate' without --scope, then 'parfum verify'.", file=sys.stderr)
+              "Run 'interlinear-book-maker translate' without --scope, then 'interlinear-book-maker verify'.", file=sys.stderr)
         return 1
 
-    target = paths.OUTPUT / f"parfum.{args.format}"
+    target = paths.OUTPUT / f"edition.{args.format}"
     if args.format == "epub":
         count = f"{write_epub(book, translated, target)} chapter files"
     else:
@@ -302,7 +302,7 @@ def _export(args) -> int:
 
 def _notion_client(api_key: str, parent_id: str):
     import httpx
-    from parfum.notion import NotionClient
+    from interlinear_book_maker.notion import NotionClient
 
     client = httpx.Client(timeout=60.0)
     return NotionClient(
@@ -313,11 +313,11 @@ def _notion_client(api_key: str, parent_id: str):
 
 
 def _publish(args) -> int:
-    from parfum.publish import PublishedLedger, publish
+    from interlinear_book_maker.publish import PublishedLedger, publish
 
     translated_path = paths.INTERIM / "translated.json"
     if not translated_path.is_file():
-        print(f"ERROR: {translated_path} does not exist. Run 'parfum translate' first.", file=sys.stderr)
+        print(f"ERROR: {translated_path} does not exist. Run 'interlinear-book-maker translate' first.", file=sys.stderr)
         return 1
 
     api_key = os.environ.get("NOTION_API_KEY")
@@ -333,12 +333,12 @@ def _publish(args) -> int:
     with open(translated_path, encoding="utf-8") as handle:
         translated = json.load(handle)
 
-    from parfum.verify import verify
+    from interlinear_book_maker.verify import verify
 
     result = verify(book, translated, scope=args.scope)
     if not result.is_valid:
         print(f"ERROR: translated.json fails verify ({len(result.flags)} flags). "
-              "Run 'parfum translate' without --scope, then 'parfum verify'.", file=sys.stderr)
+              "Run 'interlinear-book-maker translate' without --scope, then 'interlinear-book-maker verify'.", file=sys.stderr)
         return 1
 
     ledger_path = paths.OUTPUT / "published.json"
@@ -362,7 +362,7 @@ def _publish(args) -> int:
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(prog="parfum")
+    parser = argparse.ArgumentParser(prog="interlinear-book-maker")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("extract", help="PDF -> raw.txt + pagemap.json")
     sub.add_parser("segment", help="raw.txt -> book.json")
@@ -385,7 +385,7 @@ def main(argv=None) -> int:
     rn = sub.add_parser("render", help="book.json + translated.json -> data/output/ markdown")
     rn.add_argument("--scope", default=None)
     rn.add_argument("--force", action="store_true")
-    ex = sub.add_parser("export", help="book.json + translated.json -> data/output/parfum.epub|pdf")
+    ex = sub.add_parser("export", help="book.json + translated.json -> data/output/edition.epub|pdf")
     ex.add_argument("--format", choices=["epub", "pdf"], required=True)
     pb = sub.add_parser("publish", help="book.json + translated.json -> Notion child pages")
     pb.add_argument("--scope", default=None)

@@ -5,10 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from parfum.cache import Cache
-from parfum.glossary import Entry
-from parfum.model import Book
-from parfum.translate import run
+from interlinear_book_maker.cache import Cache
+from interlinear_book_maker.glossary import Entry
+from interlinear_book_maker.model import Book
+from interlinear_book_maker.translate import run
 
 
 @dataclass(frozen=True)

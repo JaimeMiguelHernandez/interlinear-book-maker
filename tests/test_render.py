@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from parfum.model import Book, Kapitel, Satz, Sektion, Teil
-from parfum.render import (
+from interlinear_book_maker.model import Book, Kapitel, Satz, Sektion, Teil
+from interlinear_book_maker.render import (
     Manifest,
     RenderStatus,
     escape_cell,

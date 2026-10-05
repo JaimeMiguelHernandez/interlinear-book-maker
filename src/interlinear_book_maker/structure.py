@@ -7,7 +7,7 @@ check is what catches a marker that was missed entirely.
 
 The extracted text opens with front matter - title and author lines ahead of
 `ERSTER TEIL`. `trim_front_matter` drops it so detection starts at the first Teil
-marker, and returns how many lines it dropped so `parfum check` can report that
+marker, and returns how many lines it dropped so `interlinear-book-maker check` can report that
 number rather than hide it.
 """
 
@@ -58,7 +58,7 @@ def trim_front_matter(text: str) -> tuple[str, int]:
     """Drop everything ahead of the first Teil marker.
 
     Returns the body and the number of non-empty lines dropped. Exported so the
-    concatenation invariant and `parfum check` measure against the same baseline
+    concatenation invariant and `interlinear-book-maker check` measure against the same baseline
     detect() uses; otherwise they compare against text detect() never saw.
     """
     lines = text.split("\n")

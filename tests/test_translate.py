@@ -1,10 +1,10 @@
 import json
 
-from parfum.cache import Cache, key
-from parfum.claude_cli import MODEL, AlignmentError, TransportError, Translation
-from parfum.glossary import Entry
-from parfum.model import Book, Kapitel, Satz, Sektion, Teil
-from parfum.translate import context_for, run, write_translated
+from interlinear_book_maker.cache import Cache, key
+from interlinear_book_maker.claude_cli import MODEL, AlignmentError, TransportError, Translation
+from interlinear_book_maker.glossary import Entry
+from interlinear_book_maker.model import Book, Kapitel, Satz, Sektion, Teil
+from interlinear_book_maker.translate import context_for, run, write_translated
 
 ENTRIES = [Entry("Gestank", "stench", "w: stench")]
 INSTR = ["Keep register formal."]

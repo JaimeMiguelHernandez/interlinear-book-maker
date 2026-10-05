@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from parfum.model import Book, Kapitel, Satz, Sektion, Teil
-from parfum.notion import NotionClient
-from parfum.publish import PublishedLedger, PublishSummary, publish
+from interlinear_book_maker.model import Book, Kapitel, Satz, Sektion, Teil
+from interlinear_book_maker.notion import NotionClient
+from interlinear_book_maker.publish import PublishedLedger, PublishSummary, publish
 
 
 def _fixture_book() -> Book:
