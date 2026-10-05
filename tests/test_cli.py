@@ -422,3 +422,37 @@ def test_publish_never_prints_book_text(tmp_path, monkeypatch, capsys):
 
 
 
+
+
+def _seed_export(tmp_path, monkeypatch, english):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    monkeypatch.setattr(paths, "OUTPUT", tmp_path / "output")
+    book = {"teile": [{"id": "T1", "number": 1, "kapitel": [
+        {"id": "T1.K01", "number": 1, "sektionen": [
+            {"id": "T1.K01.S01", "saetze": [
+                {"id": "T1.K01.S01.s001", "text": "Der Gestank."}]}]}]}]}
+    (tmp_path / "book.json").write_text(json.dumps(book), encoding="utf-8")
+    (tmp_path / "translated.json").write_text(
+        json.dumps({"T1.K01.S01.s001": english}), encoding="utf-8"
+    )
+
+
+@pytest.mark.parametrize("fmt", ["epub", "pdf"])
+def test_export_writes_the_book_file(tmp_path, monkeypatch, capsys, fmt):
+    _seed_export(tmp_path, monkeypatch, "The stench.")
+    assert cli.main(["export", "--format", fmt]) == 0
+    assert (tmp_path / "output" / f"parfum.{fmt}").is_file()
+    assert f"parfum.{fmt}" in capsys.readouterr().out
+
+
+def test_export_refuses_translation_that_fails_verify(tmp_path, monkeypatch, capsys):
+    _seed_export(tmp_path, monkeypatch, "")
+    assert cli.main(["export", "--format", "pdf"]) == 1
+    assert "fails verify" in capsys.readouterr().err
+    assert not (tmp_path / "output" / "parfum.pdf").exists()
+
+
+def test_export_missing_translated_file(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    assert cli.main(["export", "--format", "epub"]) == 1
+    assert "does not exist" in capsys.readouterr().err
