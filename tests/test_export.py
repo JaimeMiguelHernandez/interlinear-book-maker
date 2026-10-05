@@ -1,7 +1,8 @@
+import subprocess
 import xml.etree.ElementTree as ET
 import zipfile
 
-from parfum.export import TEIL_HEADINGS, write_epub
+from parfum.export import TEIL_HEADINGS, write_epub, write_pdf
 from parfum.model import Book, Kapitel, Satz, Sektion, Teil
 
 XHTML = "{http://www.w3.org/1999/xhtml}"
@@ -84,3 +85,20 @@ def test_epub_nav_lists_teile_and_kapitel(tmp_path):
         root = ET.fromstring(z.read("OEBPS/nav.xhtml"))
     links = [a.text for a in root.iter(f"{XHTML}a")]
     assert links == ["ERSTER TEIL", "Kapitel 1", "ZWEITER TEIL", "Kapitel 2"]
+
+
+def test_pdf_has_outline_and_both_languages(tmp_path):
+    path = tmp_path / "book.pdf"
+    pages = write_pdf(_book(), TRANSLATED, path)
+    data = path.read_bytes()
+    assert data.startswith(b"%PDF")
+    assert pages == 2  # each Teil opens a page
+    for title in (b"ERSTER TEIL", b"Kapitel 1", b"ZWEITER TEIL", b"Kapitel 2"):
+        assert title in data
+
+    text = subprocess.run(
+        ["pdftotext", "-enc", "UTF-8", str(path), "-"],
+        capture_output=True, text=True, encoding="utf-8", check=True,
+    ).stdout
+    assert "Der Gestank war groß." in text
+    assert "The stench was great." in text

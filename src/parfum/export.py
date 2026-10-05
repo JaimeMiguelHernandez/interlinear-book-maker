@@ -10,6 +10,7 @@ from parfum.model import Book, Kapitel
 from parfum.structure import _TEIL_NUMBER
 
 TITLE = "Das Parfum"
+FONTS = Path(__file__).parent / "fonts"
 
 # book.json keeps only the Teil number; the book's headings are exactly the
 # four markers structure.py detects, so the inverse is exact for this book.
@@ -110,3 +111,52 @@ def write_epub(book: Book, translated: dict[str, str], path: Path) -> int:
         for name, content in [("nav.xhtml", nav), ("style.css", _CSS), ("content.opf", opf), *files]:
             z.writestr(f"OEBPS/{name}", content, compress_type=zipfile.ZIP_DEFLATED)
     return len(files)
+
+
+def write_pdf(book: Book, translated: dict[str, str], path: Path) -> int:
+    """Write the book as an A4 PDF, one two-column table per Sektion."""
+    from fpdf import FPDF
+    from fpdf.fonts import FontFace
+
+    pdf = FPDF(format="A4")
+    pdf.set_margins(18, 18, 18)
+    pdf.set_auto_page_break(True, margin=18)
+    pdf.add_font("NotoSerif", "", FONTS / "NotoSerif-Regular.ttf")
+    pdf.add_font("NotoSerif", "I", FONTS / "NotoSerif-Italic.ttf")
+    pdf.add_font("NotoSerif", "B", FONTS / "NotoSerif-Bold.ttf")
+    pdf.set_title(TITLE)
+    german = FontFace(emphasis="ITALICS")
+
+    for teil in book.teile:
+        heading = TEIL_HEADINGS[teil.number]
+        pdf.add_page()
+        pdf.start_section(heading, level=0)
+        pdf.set_font("NotoSerif", "B", 18)
+        pdf.cell(0, 14, heading, align="C", new_x="LMARGIN", new_y="NEXT")
+        for kapitel in teil.kapitel:
+            pdf.ln(6)
+            pdf.start_section(f"Kapitel {kapitel.number}", level=1)
+            pdf.set_font("NotoSerif", "B", 14)
+            pdf.cell(0, 10, str(kapitel.number), align="C", new_x="LMARGIN", new_y="NEXT")
+            for n, sektion in enumerate(kapitel.sektionen):
+                if n:
+                    pdf.set_font("NotoSerif", "", 11)
+                    pdf.cell(0, 8, "*", align="C", new_x="LMARGIN", new_y="NEXT")
+                pdf.set_font("NotoSerif", "", 10)
+                with pdf.table(
+                    col_widths=(1, 1),
+                    borders_layout="HORIZONTAL_LINES",
+                    line_height=5,
+                    padding=1.5,
+                    text_align="LEFT",
+                    v_align="TOP",
+                ) as table:
+                    table.row(["Deutsch", "English"])
+                    for satz in sektion.saetze:
+                        row = table.row()
+                        row.cell(satz.text, style=german)
+                        row.cell(translated.get(satz.id, ""))
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pdf.output(str(path))
+    return pdf.pages_count
