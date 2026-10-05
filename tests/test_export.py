@@ -1,5 +1,10 @@
-from parfum.export import TEIL_HEADINGS
+import xml.etree.ElementTree as ET
+import zipfile
+
+from parfum.export import TEIL_HEADINGS, write_epub
 from parfum.model import Book, Kapitel, Satz, Sektion, Teil
+
+XHTML = "{http://www.w3.org/1999/xhtml}"
 
 
 def _book() -> Book:
@@ -37,3 +42,45 @@ def test_teil_headings_rebuild_the_book_markers():
     assert TEIL_HEADINGS == {
         1: "ERSTER TEIL", 2: "ZWEITER TEIL", 3: "DRITTER TEIL", 4: "VIERTER TEIL",
     }
+
+
+def test_epub_starts_with_uncompressed_mimetype(tmp_path):
+    path = tmp_path / "book.epub"
+    assert write_epub(_book(), TRANSLATED, path) == 2
+    with zipfile.ZipFile(path) as z:
+        first = z.infolist()[0]
+        assert first.filename == "mimetype"
+        assert first.compress_type == zipfile.ZIP_STORED
+        assert z.read("mimetype") == b"application/epub+zip"
+
+
+def test_epub_files_are_wellformed_xml(tmp_path):
+    path = tmp_path / "book.epub"
+    write_epub(_book(), TRANSLATED, path)
+    with zipfile.ZipFile(path) as z:
+        for name in z.namelist():
+            if name.endswith((".xhtml", ".opf", ".xml")):
+                ET.fromstring(z.read(name))
+
+
+def test_epub_has_one_row_per_sentence_with_escaped_text(tmp_path):
+    path = tmp_path / "book.epub"
+    write_epub(_book(), TRANSLATED, path)
+    with zipfile.ZipFile(path) as z:
+        root = ET.fromstring(z.read("OEBPS/T1.K01.xhtml"))
+    rows = root.findall(f".//{XHTML}tbody/{XHTML}tr")
+    assert len(rows) == 3
+    cells = [td.text for td in rows[1].findall(f"{XHTML}td")]
+    assert cells == ["Salz & Pfeffer <sind> da.", "Salt & pepper <are> there."]
+    assert [h.text for h in root.iter(f"{XHTML}h1")] == ["ERSTER TEIL"]
+    assert [h.text for h in root.iter(f"{XHTML}h2")] == ["1"]
+    assert [p.text for p in root.iter(f"{XHTML}p")] == ["*"]
+
+
+def test_epub_nav_lists_teile_and_kapitel(tmp_path):
+    path = tmp_path / "book.epub"
+    write_epub(_book(), TRANSLATED, path)
+    with zipfile.ZipFile(path) as z:
+        root = ET.fromstring(z.read("OEBPS/nav.xhtml"))
+    links = [a.text for a in root.iter(f"{XHTML}a")]
+    assert links == ["ERSTER TEIL", "Kapitel 1", "ZWEITER TEIL", "Kapitel 2"]
