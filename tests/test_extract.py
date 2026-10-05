@@ -40,6 +40,13 @@ def test_closes_stray_space_inside_ch():
     assert normalize("Er war es nic ht, sagte ic h.").text == "Er war es nicht, sagte ich."
 
 
+def test_repairs_words_the_text_layer_breaks():
+    """17 words come out scrambled or split around a narrow glyph ("la ngsam")."""
+    assert normalize("Und ni nerhalb ging er la ngsam zu Mar-guerite.").text == (
+        "Und innerhalb ging er langsam zu Marguerite."
+    )
+
+
 def test_ch_rule_keeps_the_space_of_a_page_join():
     """"Alambic" ends a page before "hervor"; that space is a real word break."""
     assert normalize("aus dem Alambic\nhervor.").text == "aus dem Alambic hervor."
