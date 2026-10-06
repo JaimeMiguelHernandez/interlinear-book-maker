@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any, Callable
 
+from interlinear_book_maker.languages import LANGUAGES
 from interlinear_book_maker.model import Sektion
 
 
@@ -12,14 +13,14 @@ class NotionError(Exception):
     """Raised on unrecoverable Notion API errors."""
 
 
-def build_header_row() -> dict:
-    """Build the Deutsch | English table header row."""
+def build_header_row(language: str = "en") -> dict:
+    """Build the Deutsch | <language> table header row."""
     return {
         "type": "table_row",
         "table_row": {
             "cells": [
                 [{"type": "text", "text": {"content": "Deutsch"}}],
-                [{"type": "text", "text": {"content": "English"}}],
+                [{"type": "text", "text": {"content": LANGUAGES[language][1]}}],
             ]
         },
     }
@@ -49,9 +50,9 @@ def build_table_row(german: str, english: str) -> dict:
     }
 
 
-def build_table_block(sektion: Sektion, translated: dict[str, str]) -> dict:
+def build_table_block(sektion: Sektion, translated: dict[str, str], language: str = "en") -> dict:
     """Build a 2-column Notion table block containing the header and all sentence rows."""
-    rows = [build_header_row()]
+    rows = [build_header_row(language)]
     for satz in sektion.saetze:
         rows.append(build_table_row(satz.text, translated.get(satz.id, "")))
 

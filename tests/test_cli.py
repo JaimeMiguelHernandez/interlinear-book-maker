@@ -1,4 +1,5 @@
 import json
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -526,3 +527,19 @@ def test_shipped_template_names_the_language_first():
     """Different languages must give different cache keys; the instructions carry that."""
     lines = json.loads((paths.CONFIG / "translation_instructions.json").read_text(encoding="utf-8"))
     assert "{language}" in lines[0]
+
+
+def test_export_uses_the_chosen_language_header(tmp_path, monkeypatch):
+    _seed_export(tmp_path, monkeypatch, "El hedor.")
+    paths.SETTINGS.write_text('{"target_language": "es"}', encoding="utf-8")
+    assert cli.main(["export", "--format", "epub"]) == 0
+    with zipfile.ZipFile(tmp_path / "output" / "edition.epub") as z:
+        assert "<th>Español</th>" in z.read("OEBPS/T1.K01.xhtml").decode("utf-8")
+
+
+def test_render_uses_the_chosen_language_header(tmp_path, monkeypatch):
+    _seed_export(tmp_path, monkeypatch, "El hedor.")
+    paths.SETTINGS.write_text('{"target_language": "es"}', encoding="utf-8")
+    assert cli.main(["render"]) == 0
+    md = (tmp_path / "output" / "T1" / "T1.K01.S01.md").read_text(encoding="utf-8")
+    assert "| Deutsch | Español |" in md

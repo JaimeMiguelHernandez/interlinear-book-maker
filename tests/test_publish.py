@@ -217,3 +217,17 @@ def test_ledger_methods(tmp_path: Path):
     assert list(iter(ledger)) == ["S1"]
     assert ledger.get("S2") is None
 
+
+
+def test_publish_writes_the_chosen_language_header(tmp_path):
+    blocks = []
+
+    class FakeClient:
+        def create_page(self, title, table_block):
+            blocks.append(table_block)
+            return f"page-{len(blocks)}"
+
+    publish(_fixture_book(), _fixture_translated(), FakeClient(), PublishedLedger(),
+            ledger_path=tmp_path / "published.json", language="es")
+    header = blocks[0]["table"]["children"][0]
+    assert header["table_row"]["cells"][1][0]["text"]["content"] == "Español"

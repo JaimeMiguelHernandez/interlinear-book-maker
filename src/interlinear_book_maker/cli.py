@@ -302,7 +302,8 @@ def _render(args) -> int:
     with open(translated_path, encoding="utf-8") as handle:
         translated = json.load(handle)
 
-    summary = render_book(book, translated, paths.OUTPUT, scope=args.scope, force=args.force)
+    summary = render_book(book, translated, paths.OUTPUT, scope=args.scope, force=args.force,
+                          language=_target_language())
 
     print(f"emitted: {summary.emitted}  skipped: {summary.skipped}  "
           f"conflicts: {len(summary.conflicts)}  total: {summary.total}")
@@ -334,9 +335,9 @@ def _export(args) -> int:
 
     target = paths.OUTPUT / f"edition.{args.format}"
     if args.format == "epub":
-        count = f"{write_epub(book, translated, target)} chapter files"
+        count = f"{write_epub(book, translated, target, language=_target_language())} chapter files"
     else:
-        count = f"{write_pdf(book, translated, target)} pages"
+        count = f"{write_pdf(book, translated, target, language=_target_language())} pages"
     print(f"{target}: {count}, {target.stat().st_size // 1024} KB")
     return 0
 
@@ -395,6 +396,7 @@ def _publish(args) -> int:
         force=args.force,
         dry_run=args.dry_run,
         ledger_path=ledger_path,
+        language=_target_language(),
     )
 
     print(f"published: {summary.published}  updated: {summary.updated}  "

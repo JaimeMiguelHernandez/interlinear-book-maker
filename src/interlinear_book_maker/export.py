@@ -6,6 +6,7 @@ import zipfile
 from html import escape
 from pathlib import Path
 
+from interlinear_book_maker.languages import LANGUAGES
 from interlinear_book_maker.model import Book, Kapitel
 from interlinear_book_maker.structure import _TEIL_NUMBER
 
@@ -45,7 +46,8 @@ def _xhtml(title: str, body: str) -> str:
 """
 
 
-def _kapitel_body(kapitel: Kapitel, translated: dict[str, str], teil_heading: str | None) -> str:
+def _kapitel_body(kapitel: Kapitel, translated: dict[str, str], teil_heading: str | None,
+                  language: str) -> str:
     parts = [f"<h1>{escape(teil_heading)}</h1>"] if teil_heading else []
     parts.append(f"<h2>{kapitel.number}</h2>")
     for n, sektion in enumerate(kapitel.sektionen):
@@ -53,17 +55,17 @@ def _kapitel_body(kapitel: Kapitel, translated: dict[str, str], teil_heading: st
             parts.append('<p class="break">*</p>')
         rows = "".join(
             f'<tr><td class="de">{escape(satz.text)}</td>'
-            f"<td>{escape(translated.get(satz.id, ''))}</td></tr>"
+            f'<td lang="{language}" xml:lang="{language}">{escape(translated.get(satz.id, ""))}</td></tr>'
             for satz in sektion.saetze
         )
         parts.append(
-            "<table><thead><tr><th>Deutsch</th><th>English</th></tr></thead>"
+            f"<table><thead><tr><th>Deutsch</th><th>{escape(LANGUAGES[language][1])}</th></tr></thead>"
             f"<tbody>{rows}</tbody></table>"
         )
     return "\n".join(parts)
 
 
-def write_epub(book: Book, translated: dict[str, str], path: Path) -> int:
+def write_epub(book: Book, translated: dict[str, str], path: Path, language: str = "en") -> int:
     """Write the book as an EPUB 3 with one XHTML file per Kapitel."""
     files: list[tuple[str, str]] = []
     nav_items = []
@@ -72,7 +74,7 @@ def write_epub(book: Book, translated: dict[str, str], path: Path) -> int:
         kapitel_items = []
         for i, kapitel in enumerate(teil.kapitel):
             name = f"{kapitel.id}.xhtml"
-            body = _kapitel_body(kapitel, translated, heading if i == 0 else None)
+            body = _kapitel_body(kapitel, translated, heading if i == 0 else None, language)
             files.append((name, _xhtml(f"{heading} {kapitel.number}", body)))
             kapitel_items.append(f'<li><a href="{name}">Kapitel {kapitel.number}</a></li>')
         nav_items.append(
@@ -113,7 +115,7 @@ def write_epub(book: Book, translated: dict[str, str], path: Path) -> int:
     return len(files)
 
 
-def write_pdf(book: Book, translated: dict[str, str], path: Path) -> int:
+def write_pdf(book: Book, translated: dict[str, str], path: Path, language: str = "en") -> int:
     """Write the book as an A4 PDF, one two-column table per Sektion."""
     from fpdf import FPDF
     from fpdf.fonts import FontFace
@@ -151,7 +153,7 @@ def write_pdf(book: Book, translated: dict[str, str], path: Path) -> int:
                     text_align="LEFT",
                     v_align="TOP",
                 ) as table:
-                    table.row(["Deutsch", "English"])
+                    table.row(["Deutsch", LANGUAGES[language][1]])
                     for satz in sektion.saetze:
                         row = table.row()
                         row.cell(satz.text, style=german)

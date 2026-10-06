@@ -102,3 +102,25 @@ def test_pdf_has_outline_and_both_languages(tmp_path):
     ).stdout
     assert "Der Gestank war groß." in text
     assert "The stench was great." in text
+
+
+def test_epub_header_and_cells_carry_the_language(tmp_path):
+    path = tmp_path / "book.epub"
+    write_epub(_book(), TRANSLATED, path, language="es")
+    with zipfile.ZipFile(path) as z:
+        root = ET.fromstring(z.read("OEBPS/T1.K01.xhtml"))
+    assert [th.text for th in root.iter(f"{XHTML}th")][:2] == ["Deutsch", "Español"]
+    de, es = root.find(f".//{XHTML}tbody/{XHTML}tr").findall(f"{XHTML}td")
+    assert "lang" not in de.attrib
+    assert es.get("lang") == "es"
+    assert es.get("{http://www.w3.org/XML/1998/namespace}lang") == "es"
+
+
+def test_pdf_header_uses_the_native_language_name(tmp_path):
+    path = tmp_path / "book.pdf"
+    write_pdf(_book(), TRANSLATED, path, language="es")
+    text = subprocess.run(
+        ["pdftotext", "-enc", "UTF-8", str(path), "-"],
+        capture_output=True, text=True, encoding="utf-8", check=True,
+    ).stdout
+    assert "Español" in text
