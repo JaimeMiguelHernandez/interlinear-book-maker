@@ -456,3 +456,36 @@ def test_export_missing_translated_file(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(paths, "INTERIM", tmp_path)
     assert cli.main(["export", "--format", "epub"]) == 1
     assert "does not exist" in capsys.readouterr().err
+
+
+def test_language_defaults_to_english(capsys):
+    assert cli.main(["language"]) == 0
+    assert "target language: en (English / English)" in capsys.readouterr().out
+
+
+def test_language_switch_removes_translated_json(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    translated = tmp_path / "translated.json"
+    translated.write_text("{}", encoding="utf-8")
+
+    assert cli.main(["language", "es"]) == 0
+    assert not translated.exists()
+    out = capsys.readouterr().out
+    assert "target language: es (Spanish / Español)" in out
+    assert "translated.json removed" in out
+
+    translated.write_text("{}", encoding="utf-8")
+    assert cli.main(["language", "es"]) == 0
+    assert translated.exists()
+
+
+def test_language_rejects_an_unknown_code(capsys):
+    assert cli.main(["language", "xx"]) == 1
+    assert "supported: en, es, fr, it, pt, nl, pl, sv" in capsys.readouterr().err
+    assert not paths.SETTINGS.exists()
+
+
+def test_an_unknown_stored_language_stops_the_command():
+    paths.SETTINGS.write_text('{"target_language": "xx"}', encoding="utf-8")
+    with pytest.raises(SystemExit, match="unknown language 'xx'"):
+        cli._target_language()

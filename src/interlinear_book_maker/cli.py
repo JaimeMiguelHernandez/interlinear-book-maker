@@ -103,6 +103,34 @@ def _check(_args) -> int:
     return 1 if problems else 0
 
 
+def _target_language() -> str:
+    from interlinear_book_maker.languages import LANGUAGES, target_code
+
+    code = target_code()
+    if code not in LANGUAGES:
+        raise SystemExit(f"unknown language '{code}' in {paths.SETTINGS}; "
+                         f"supported: {', '.join(LANGUAGES)}")
+    return code
+
+
+def _language(args) -> int:
+    from interlinear_book_maker.languages import LANGUAGES, set_target
+
+    code = _target_language() if args.code is None else args.code
+    if code not in LANGUAGES:
+        print(f"ERROR: unknown language '{code}'; supported: {', '.join(LANGUAGES)}",
+              file=sys.stderr)
+        return 1
+    english, native = LANGUAGES[code]
+    print(f"target language: {code} ({english} / {native})")
+    if args.code is not None and set_target(code):
+        translated = paths.INTERIM / "translated.json"
+        if translated.is_file():
+            translated.unlink()
+            print("translated.json removed; run 'interlinear-book-maker translate'")
+    return 0
+
+
 def _senses(args) -> int:
     from interlinear_book_maker.candidates import count_lemmas, recurring
     from interlinear_book_maker.sentences import load_nlp
@@ -367,6 +395,8 @@ def main(argv=None) -> int:
     sub.add_parser("extract", help="PDF -> raw.txt + pagemap.json")
     sub.add_parser("segment", help="raw.txt -> book.json")
     sub.add_parser("check", help="verify book.json against raw.txt")
+    la = sub.add_parser("language", help="show or set the translation language")
+    la.add_argument("code", nargs="?")
     se = sub.add_parser("senses", help="kaikki JSONL -> data/reference/senses.json")
     se.add_argument("--jsonl", required=True)
     se.add_argument("--min-count", type=int, default=8)
@@ -396,6 +426,7 @@ def main(argv=None) -> int:
         "extract": _extract,
         "segment": _segment,
         "check": _check,
+        "language": _language,
         "senses": _senses,
         "glossary-candidates": _glossary_candidates,
         "glossary-validate": _glossary_validate,
