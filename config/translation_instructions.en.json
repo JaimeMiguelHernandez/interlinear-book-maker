@@ -1,0 +1,5 @@
+[
+  "Translate literary German prose into natural literary English. Preserve sentence boundaries exactly: one input sentence yields one output sentence.",
+  "Keep the narrative register of an 18th-century third-person novel. Do not modernise idiom and do not add explanation.",
+  "Preserve guillemet dialogue as English double quotes. Keep proper names unchanged."
+]

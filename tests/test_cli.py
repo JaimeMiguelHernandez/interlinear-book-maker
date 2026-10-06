@@ -164,7 +164,7 @@ def test_glossary_validate_rejects_an_entry_without_a_matching_sense(tmp_path, m
 
     monkeypatch.setattr(paths, "CONFIG", tmp_path)
     monkeypatch.setattr(paths, "REFERENCE", tmp_path)
-    (tmp_path / "glossary.tsv").write_text(
+    (tmp_path / "glossary.en.tsv").write_text(
         "# source\ttarget\tevidence\nZug\ttrain\tw: train\n", encoding="utf-8")
     save_subset({"Zug": [Sense("noun", "train"), Sense("noun", "draught")]},
                 tmp_path / "senses.json")
@@ -188,7 +188,7 @@ def test_translate_force_dry_run_ignores_the_cache_in_its_pending_count(
     (tmp_path / "book.json").write_text(json.dumps(book), encoding="utf-8")
 
     # Pre-populate the cache so the sentence is already translated. No
-    # config/glossary.tsv and empty instructions above match what cli._translate
+    # glossary.en.tsv and empty fallback instructions above match what cli._translate
     # will load, so this is the exact key it will look up.
     cache = Cache(tmp_path / "cache")
     cache.put(cache_key("Der Gestank.", [], MODEL, []),
@@ -498,3 +498,31 @@ def test_client_translates_into_the_chosen_language(monkeypatch):
     assert cli._client().target == "English"
     set_target("fr")
     assert cli._client().target == "French"
+
+
+def _seed_config(tmp_path, monkeypatch):
+    monkeypatch.setattr(paths, "CONFIG", tmp_path)
+    (tmp_path / "translation_instructions.en.json").write_text(
+        '["Into English."]', encoding="utf-8")
+    (tmp_path / "translation_instructions.json").write_text(
+        '["Into {language}."]', encoding="utf-8")
+    (tmp_path / "glossary.en.tsv").write_text(
+        "# source\ttarget\tevidence\nDuft\tscent\tw: scent\n", encoding="utf-8")
+
+
+def test_english_reads_its_own_instructions_and_glossary(tmp_path, monkeypatch):
+    _seed_config(tmp_path, monkeypatch)
+    assert cli._load_instructions("en") == ["Into English."]
+    assert [e.target for e in cli._load_glossary("en")] == ["scent"]
+
+
+def test_other_languages_fill_the_template_and_have_no_glossary(tmp_path, monkeypatch):
+    _seed_config(tmp_path, monkeypatch)
+    assert cli._load_instructions("es") == ["Into Spanish."]
+    assert cli._load_glossary("es") == []
+
+
+def test_shipped_template_names_the_language_first():
+    """Different languages must give different cache keys; the instructions carry that."""
+    lines = json.loads((paths.CONFIG / "translation_instructions.json").read_text(encoding="utf-8"))
+    assert "{language}" in lines[0]

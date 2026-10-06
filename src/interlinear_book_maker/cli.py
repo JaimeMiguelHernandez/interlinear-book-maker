@@ -185,17 +185,28 @@ def _client():
     return ClaudeClient(claude, run, target=LANGUAGES[_target_language()][0])
 
 
-def _load_glossary():
+def _load_glossary(code: str):
     from interlinear_book_maker.glossary import parse_tsv
 
-    path = paths.CONFIG / "glossary.tsv"
+    path = paths.CONFIG / f"glossary.{code}.tsv"
     return parse_tsv(path.read_text(encoding="utf-8")) if path.is_file() else []
+
+
+def _load_instructions(code: str) -> list[str]:
+    """config/translation_instructions.<code>.json, else the {language} template."""
+    from interlinear_book_maker.claude_cli import load_instructions
+    from interlinear_book_maker.languages import LANGUAGES
+
+    path = paths.CONFIG / f"translation_instructions.{code}.json"
+    if not path.is_file():
+        path = paths.CONFIG / "translation_instructions.json"
+    return [line.replace("{language}", LANGUAGES[code][0]) for line in load_instructions(path)]
 
 
 def _glossary_validate(_args) -> int:
     from interlinear_book_maker.wiktextract import load_subset
 
-    entries = _load_glossary()
+    entries = _load_glossary(_target_language())
     senses = load_subset(paths.REFERENCE / "senses.json")
     problems = []
     for entry in entries:
@@ -212,11 +223,10 @@ def _glossary_validate(_args) -> int:
 
 def _glossary_ab(args) -> int:
     from interlinear_book_maker.ab import compare, report
-    from interlinear_book_maker.claude_cli import load_instructions
 
     book = _read_book()
-    diffs = compare(book, _load_glossary(),
-                    load_instructions(paths.CONFIG / "translation_instructions.json"),
+    code = _target_language()
+    diffs = compare(book, _load_glossary(code), _load_instructions(code),
                     _client(), scope=args.scope,
                     cache_root=paths.TRANSLATION_CACHE / "ab")
     print(report(diffs))
@@ -226,12 +236,13 @@ def _glossary_ab(args) -> int:
 def _translate(args) -> int:
     from interlinear_book_maker.cache import Cache
     from interlinear_book_maker.cache import key as cache_key
-    from interlinear_book_maker.claude_cli import MODEL, load_instructions
+    from interlinear_book_maker.claude_cli import MODEL
     from interlinear_book_maker.translate import run, write_translated
 
     book = _read_book()
-    entries = _load_glossary()
-    instructions = load_instructions(paths.CONFIG / "translation_instructions.json")
+    code = _target_language()
+    entries = _load_glossary(code)
+    instructions = _load_instructions(code)
     cache = Cache(paths.TRANSLATION_CACHE)
 
     saetze = [s for s in book.iter_saetze()
