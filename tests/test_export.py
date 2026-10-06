@@ -6,6 +6,9 @@ from interlinear_book_maker.export import TEIL_HEADINGS, write_epub, write_pdf
 from interlinear_book_maker.model import Book, Kapitel, Satz, Sektion, Teil
 
 XHTML = "{http://www.w3.org/1999/xhtml}"
+OPS = "{http://www.idpf.org/2007/ops}"
+OPF = "{http://www.idpf.org/2007/opf}"
+NCX = "{http://www.daisy.org/z3986/2005/ncx/}"
 
 
 def _book() -> Book:
@@ -64,18 +67,20 @@ def test_epub_files_are_wellformed_xml(tmp_path):
                 ET.fromstring(z.read(name))
 
 
-def test_epub_has_one_row_per_sentence_with_escaped_text(tmp_path):
+def test_epub_stacks_each_sentence_over_its_translation(tmp_path):
     path = tmp_path / "book.epub"
     write_epub(_book(), TRANSLATED, path)
     with zipfile.ZipFile(path) as z:
         root = ET.fromstring(z.read("OEBPS/T1.K01.xhtml"))
-    rows = root.findall(f".//{XHTML}tbody/{XHTML}tr")
-    assert len(rows) == 3
-    cells = [td.text for td in rows[1].findall(f"{XHTML}td")]
-    assert cells == ["Salz & Pfeffer <sind> da.", "Salt & pepper <are> there."]
+    pairs = [div for div in root.iter(f"{XHTML}div") if div.get("class") == "pair"]
+    assert len(pairs) == 3
+    assert [(p.get("class"), p.text) for p in pairs[1]] == [
+        ("de", "Salz & Pfeffer <sind> da."), ("tr", "Salt & pepper <are> there.")]
+    assert not list(root.iter(f"{XHTML}table"))
     assert [h.text for h in root.iter(f"{XHTML}h1")] == ["ERSTER TEIL"]
     assert [h.text for h in root.iter(f"{XHTML}h2")] == ["1"]
-    assert [p.text for p in root.iter(f"{XHTML}p")] == ["*"]
+    breaks = [p.text for p in root.iter(f"{XHTML}p") if p.get("class") == "break"]
+    assert breaks == ["*"]
 
 
 def test_epub_nav_lists_teile_and_kapitel(tmp_path):
@@ -83,8 +88,40 @@ def test_epub_nav_lists_teile_and_kapitel(tmp_path):
     write_epub(_book(), TRANSLATED, path)
     with zipfile.ZipFile(path) as z:
         root = ET.fromstring(z.read("OEBPS/nav.xhtml"))
-    links = [a.text for a in root.iter(f"{XHTML}a")]
+    toc = next(nav for nav in root.iter(f"{XHTML}nav") if nav.get(f"{OPS}type") == "toc")
+    links = [a.text for a in toc.iter(f"{XHTML}a")]
     assert links == ["ERSTER TEIL", "Kapitel 1", "ZWEITER TEIL", "Kapitel 2"]
+
+
+def test_epub_ncx_lists_teile_and_kapitel_for_kindle(tmp_path):
+    path = tmp_path / "book.epub"
+    write_epub(_book(), TRANSLATED, path)
+    with zipfile.ZipFile(path) as z:
+        names = set(z.namelist())
+        root = ET.fromstring(z.read("OEBPS/toc.ncx"))
+    points = list(root.iter(f"{NCX}navPoint"))
+    labels = [p.find(f"{NCX}navLabel/{NCX}text").text for p in points]
+    assert labels == ["ERSTER TEIL", "Kapitel 1", "ZWEITER TEIL", "Kapitel 2"]
+    srcs = [p.find(f"{NCX}content").get("src") for p in points]
+    assert all(f"OEBPS/{src}" in names for src in srcs)
+    # A Teil and its first Kapitel open the same file, so they share a playOrder.
+    assert [p.get("playOrder") for p in points] == ["1", "1", "2", "2"]
+
+
+def test_epub_opens_on_the_contents_page_with_landmarks(tmp_path):
+    path = tmp_path / "book.epub"
+    write_epub(_book(), TRANSLATED, path)
+    with zipfile.ZipFile(path) as z:
+        opf = ET.fromstring(z.read("OEBPS/content.opf"))
+        nav = ET.fromstring(z.read("OEBPS/nav.xhtml"))
+    spine = opf.find(f"{OPF}spine")
+    assert spine.get("toc") == "ncx"
+    assert spine[0].get("idref") == "nav"
+    guide = {r.get("type"): r.get("href") for r in opf.iter(f"{OPF}reference")}
+    assert guide == {"toc": "nav.xhtml", "text": "T1.K01.xhtml"}
+    landmarks = next(n for n in nav.iter(f"{XHTML}nav") if n.get(f"{OPS}type") == "landmarks")
+    assert {a.get(f"{OPS}type"): a.get("href") for a in landmarks.iter(f"{XHTML}a")} == {
+        "toc": "nav.xhtml", "bodymatter": "T1.K01.xhtml"}
 
 
 def test_pdf_has_outline_and_both_languages(tmp_path):
@@ -104,13 +141,12 @@ def test_pdf_has_outline_and_both_languages(tmp_path):
     assert "The stench was great." in text
 
 
-def test_epub_header_and_cells_carry_the_language(tmp_path):
+def test_epub_translation_carries_the_language(tmp_path):
     path = tmp_path / "book.epub"
     write_epub(_book(), TRANSLATED, path, language="es")
     with zipfile.ZipFile(path) as z:
         root = ET.fromstring(z.read("OEBPS/T1.K01.xhtml"))
-    assert [th.text for th in root.iter(f"{XHTML}th")][:2] == ["Deutsch", "Español"]
-    de, es = root.find(f".//{XHTML}tbody/{XHTML}tr").findall(f"{XHTML}td")
+    de, es = root.find(f".//{XHTML}div")
     assert "lang" not in de.attrib
     assert es.get("lang") == "es"
     assert es.get("{http://www.w3.org/XML/1998/namespace}lang") == "es"

@@ -529,12 +529,12 @@ def test_shipped_template_names_the_language_first():
     assert "{language}" in lines[0]
 
 
-def test_export_uses_the_chosen_language_header(tmp_path, monkeypatch):
+def test_export_uses_the_chosen_language(tmp_path, monkeypatch):
     _seed_export(tmp_path, monkeypatch, "El hedor.")
     paths.SETTINGS.write_text('{"target_language": "es"}', encoding="utf-8")
     assert cli.main(["export", "--format", "epub"]) == 0
     with zipfile.ZipFile(tmp_path / "output" / "edition.epub") as z:
-        assert "<th>Español</th>" in z.read("OEBPS/T1.K01.xhtml").decode("utf-8")
+        assert 'lang="es"' in z.read("OEBPS/T1.K01.xhtml").decode("utf-8")
 
 
 def test_render_uses_the_chosen_language_header(tmp_path, monkeypatch):
