@@ -171,6 +171,8 @@ def _client():
     import shutil
     import subprocess
 
+    from interlinear_book_maker.languages import LANGUAGES
+
     claude = shutil.which("claude")
     if not claude:
         raise SystemExit("claude CLI not found on PATH")
@@ -180,7 +182,7 @@ def _client():
                               encoding="utf-8", timeout=TIMEOUT_SECONDS)
         return done.returncode, done.stdout
 
-    return ClaudeClient(claude, run)
+    return ClaudeClient(claude, run, target=LANGUAGES[_target_language()][0])
 
 
 def _load_glossary():

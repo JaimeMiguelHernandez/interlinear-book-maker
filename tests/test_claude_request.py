@@ -61,27 +61,27 @@ def test_schema_wraps_the_rows_in_an_object():
     assert RESPONSE_SCHEMA["type"] == "object"
     rows = RESPONSE_SCHEMA["properties"]["rows"]
     assert rows["type"] == "array"
-    assert rows["items"]["required"] == ["id", "english"]
+    assert rows["items"]["required"] == ["id", "translation"]
 
 
 def test_parse_reassembles_by_id_not_by_position():
-    rows = [{"id": 2, "english": "The tanner."}, {"id": 1, "english": "The stench."}]
+    rows = [{"id": 2, "translation": "The tanner."}, {"id": 1, "translation": "The stench."}]
     translations, _ = parse_response(_payload(rows), expected=2)
     assert [t.text for t in translations] == ["The stench.", "The tanner."]
     assert translations[0] == Translation("The stench.", MODEL)
 
 
 def test_parse_counts_every_input_and_output_token():
-    rows = [{"id": 1, "english": "The stench."}]
+    rows = [{"id": 1, "translation": "The stench."}]
     _, tokens = parse_response(_payload(rows), expected=1)
     assert tokens == 2 + 1180 + 5 + 93
 
 
 @pytest.mark.parametrize("rows", [
-    [{"id": 1, "english": "One."}],                                   # missing id
-    [{"id": 1, "english": "One."}, {"id": 1, "english": "Again."}],   # duplicate id
-    [{"id": 1, "english": "One."}, {"id": 2, "english": "Two."},
-     {"id": 3, "english": "Three."}],                                 # extra id
+    [{"id": 1, "translation": "One."}],                                   # missing id
+    [{"id": 1, "translation": "One."}, {"id": 1, "translation": "Again."}],   # duplicate id
+    [{"id": 1, "translation": "One."}, {"id": 2, "translation": "Two."},
+     {"id": 3, "translation": "Three."}],                                 # extra id
 ])
 def test_misaligned_responses_raise(rows):
     with pytest.raises(AlignmentError):
@@ -113,3 +113,15 @@ def test_the_recorded_response_parses():
     translations, tokens = parse_response(payload, expected=2)
     assert len(translations) == 2
     assert tokens > 0
+
+
+def test_request_names_the_target_language():
+    system, _ = build_request(["Der Gestank."], context=None, entries=[],
+                              instructions=[], target="Spanish")
+    assert "Translate German into Spanish." in system
+    assert "its Spanish translation" in system
+
+
+def test_request_defaults_to_english():
+    system, _ = build_request(["Der Gestank."], context=None, entries=[], instructions=[])
+    assert "Translate German into English." in system

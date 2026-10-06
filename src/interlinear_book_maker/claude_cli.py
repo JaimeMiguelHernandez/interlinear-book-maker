@@ -15,7 +15,6 @@ from interlinear_book_maker.glossary import Entry, entries_for
 MODEL = "claude-sonnet-5"   # full ID, never an alias: it is part of the cache key
 EFFORT = "low"
 SOURCE_LANG = "German"
-TARGET_LANG = "English"
 BATCH_SENTENCES = 20
 MAX_INSTRUCTIONS = 10
 MAX_INSTRUCTION_CHARS = 300
@@ -27,8 +26,8 @@ RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {"rows": {"type": "array", "items": {
         "type": "object",
-        "properties": {"id": {"type": "integer"}, "english": {"type": "string"}},
-        "required": ["id", "english"],
+        "properties": {"id": {"type": "integer"}, "translation": {"type": "string"}},
+        "required": ["id", "translation"],
     }}},
     "required": ["rows"],
 }
@@ -63,10 +62,10 @@ def build_batches(texts: list[str]) -> list[list[int]]:
 
 
 def _system_text(texts: list[str], entries: list[Entry], instructions: list[str],
-                 context: str | None) -> str:
+                 context: str | None, target: str) -> str:
     parts = [
-        f"Translate {SOURCE_LANG} into {TARGET_LANG}. The input is a numbered "
-        f"list. Return one object per input item, with its id and its English "
+        f"Translate {SOURCE_LANG} into {target}. The input is a numbered "
+        f"list. Return one object per input item, with its id and its {target} "
         f"translation. Translate every item exactly once.",
     ]
     parts.extend(instructions)
@@ -82,10 +81,11 @@ def _system_text(texts: list[str], entries: list[Entry], instructions: list[str]
 
 
 def build_request(texts: list[str], *, context: str | None,
-                  entries: list[Entry], instructions: list[str]) -> tuple[str, str]:
+                  entries: list[Entry], instructions: list[str],
+                  target: str = "English") -> tuple[str, str]:
     """(system text, numbered sentences). Only the second one is book text to translate."""
     numbered = "\n".join(f"{i}. {text}" for i, text in enumerate(texts, start=1))
-    return _system_text(texts, entries, instructions, context), numbered
+    return _system_text(texts, entries, instructions, context, target), numbered
 
 
 def parse_response(payload: dict, expected: int) -> tuple[list[Translation], int]:
@@ -102,7 +102,7 @@ def parse_response(payload: dict, expected: int) -> tuple[list[Translation], int
     if sorted(ids) != list(range(1, expected + 1)):
         raise AlignmentError(f"expected ids 1..{expected}, got {sorted(ids)}")
 
-    by_id = {row["id"]: row["english"] for row in rows}
+    by_id = {row["id"]: row["translation"] for row in rows}
     usage = payload.get("usage", {})
     tokens = sum(usage.get(k, 0) for k in (
         "input_tokens", "cache_creation_input_tokens",
@@ -116,11 +116,12 @@ class TransportError(RuntimeError):
 
 class Client:
     def __init__(self, claude: str, run, sleep=time.sleep,
-                 model: str = MODEL) -> None:
+                 model: str = MODEL, target: str = "English") -> None:
         self.claude = claude
         self.run = run
         self.sleep = sleep
         self.model = model
+        self.target = target
 
     def _argv(self, system_file: str) -> list[str]:
         return [self.claude, "-p", "--model", self.model, "--effort", EFFORT,
@@ -160,7 +161,8 @@ class Client:
                   entries: list[Entry],
                   instructions: list[str]) -> tuple[list[Translation], int]:
         system, numbered = build_request(texts, context=context, entries=entries,
-                                         instructions=instructions)
+                                         instructions=instructions,
+                                         target=self.target)
         fd, system_file = tempfile.mkstemp(suffix=".txt")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:

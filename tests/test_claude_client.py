@@ -24,7 +24,7 @@ def _error(result, status=None):
                           "result": result})
 
 
-ONE = [{"id": 1, "english": "The stench."}]
+ONE = [{"id": 1, "translation": "The stench."}]
 
 
 class FakeRun:

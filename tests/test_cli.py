@@ -489,3 +489,12 @@ def test_an_unknown_stored_language_stops_the_command():
     paths.SETTINGS.write_text('{"target_language": "xx"}', encoding="utf-8")
     with pytest.raises(SystemExit, match="unknown language 'xx'"):
         cli._target_language()
+
+
+def test_client_translates_into_the_chosen_language(monkeypatch):
+    from interlinear_book_maker.languages import set_target
+
+    monkeypatch.setattr("shutil.which", lambda _name: r"C:\bin\claude.CMD")
+    assert cli._client().target == "English"
+    set_target("fr")
+    assert cli._client().target == "French"
