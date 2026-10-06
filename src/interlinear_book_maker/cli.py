@@ -418,7 +418,7 @@ def main(argv=None) -> int:
     cand = sub.add_parser("glossary-candidates",
                           help="book.json -> candidates.tsv for curation")
     cand.add_argument("--min-count", type=int, default=8)
-    sub.add_parser("glossary-validate", help="check config/glossary.tsv")
+    sub.add_parser("glossary-validate", help="check config/glossary.<code>.tsv for the current language")
     ab = sub.add_parser("glossary-ab", help="translate a sample with and without")
     ab.add_argument("--scope", default="T1.K01")
     tr = sub.add_parser("translate", help="book.json -> translated.json")
