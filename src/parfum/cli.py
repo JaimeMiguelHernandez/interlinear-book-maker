@@ -272,6 +272,34 @@ def _render(args) -> int:
     return 0
 
 
+def _export(args) -> int:
+    from parfum.export import write_epub, write_pdf
+    from parfum.verify import verify
+
+    translated_path = paths.INTERIM / "translated.json"
+    if not translated_path.is_file():
+        print(f"ERROR: {translated_path} does not exist. Run 'parfum translate' first.", file=sys.stderr)
+        return 1
+
+    book = _read_book()
+    with open(translated_path, encoding="utf-8") as handle:
+        translated = json.load(handle)
+
+    result = verify(book, translated)
+    if not result.is_valid:
+        print(f"ERROR: translated.json fails verify ({len(result.flags)} flags). "
+              "Run 'parfum translate' without --scope, then 'parfum verify'.", file=sys.stderr)
+        return 1
+
+    target = paths.OUTPUT / f"parfum.{args.format}"
+    if args.format == "epub":
+        count = f"{write_epub(book, translated, target)} chapter files"
+    else:
+        count = f"{write_pdf(book, translated, target)} pages"
+    print(f"{target}: {count}, {target.stat().st_size // 1024} KB")
+    return 0
+
+
 def _notion_client(api_key: str, parent_id: str):
     import httpx
     from parfum.notion import NotionClient
@@ -357,6 +385,8 @@ def main(argv=None) -> int:
     rn = sub.add_parser("render", help="book.json + translated.json -> data/output/ markdown")
     rn.add_argument("--scope", default=None)
     rn.add_argument("--force", action="store_true")
+    ex = sub.add_parser("export", help="book.json + translated.json -> data/output/parfum.epub|pdf")
+    ex.add_argument("--format", choices=["epub", "pdf"], required=True)
     pb = sub.add_parser("publish", help="book.json + translated.json -> Notion child pages")
     pb.add_argument("--scope", default=None)
     pb.add_argument("--force", action="store_true")
@@ -373,6 +403,7 @@ def main(argv=None) -> int:
         "translate": _translate,
         "verify": _verify,
         "render": _render,
+        "export": _export,
         "publish": _publish,
     }[args.command](args)
 

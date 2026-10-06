@@ -39,6 +39,30 @@ _TERMINAL = (".", "!", "?", "…", "«", "»", '"', ":", ";")
 # before "hervor" keeps its space. No other line in the book holds "c h".
 SPLIT_CH = re.compile(r"(?<=\w)c h")
 
+# The text layer also breaks 17 words, mostly around a narrow "i" or "l", each
+# once: found by joining word pairs against data/reference word lists. No rule
+# separates "de iner" from a real pair like "die ihr", so they are listed.
+BROKEN_WORDS = {
+    "ni nerhalb": "innerhalb",
+    "la ngsam": "langsam",
+    "Vie lleicht": "Vielleicht",
+    "de iner": "deiner",
+    "einze lne": "einzelne",
+    "kle idete": "kleidete",
+    "ba ldige": "baldige",
+    "pla pperten": "plapperten",
+    "Genia lität": "Genialität",
+    "lä ngst": "längst",
+    "filtrie ren": "filtrieren",
+    "Destilla tion": "Destillation",
+    "Nebenbuhle r": "Nebenbuhler",
+    "wiederzube leben": "wiederzubeleben",
+    "Ga illard": "Gaillard",
+    "Baldin i": "Baldini",
+    "Mar-guerite": "Marguerite",
+}
+_BROKEN_WORD = re.compile(r"\b(?:" + "|".join(map(re.escape, BROKEN_WORDS)) + r")\b")
+
 
 @dataclass
 class Normalized:
@@ -77,6 +101,7 @@ def normalize(raw: str) -> Normalized:
             page_start_lines.append(len(lines))
 
         stripped = SPLIT_CH.sub("ch", line.strip())
+        stripped = _BROKEN_WORD.sub(lambda m: BROKEN_WORDS[m[0]], stripped)
         is_page_number = PAGE_NUMBER.fullmatch(stripped)
         if not stripped or is_page_number:
             if is_page_number:
