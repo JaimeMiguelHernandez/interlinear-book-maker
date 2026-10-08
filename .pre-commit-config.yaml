@@ -1,0 +1,18 @@
+# Secret scanning before every commit. Install once: uv run pre-commit install
+repos:
+  # gitleaks runs from PATH (winget install --id Gitleaks.Gitleaks -e). The
+  # upstream hook builds it with Go, which Windows refuses to run here; its
+  # gitleaks-system variant would pass file names that `gitleaks git` rejects.
+  - repo: local
+    hooks:
+      - id: gitleaks
+        name: gitleaks
+        entry: gitleaks git --pre-commit --redact --staged --verbose
+        language: system
+        pass_filenames: false
+  # Revision is a commit SHA so a moved tag cannot change what runs.
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: 01886c8a910c64595c47f186ca1ffc0b77fa5458  # pragma: allowlist secret (v1.5.0)
+    hooks:
+      - id: detect-secrets
+        args: ["--baseline", ".secrets.baseline"]
