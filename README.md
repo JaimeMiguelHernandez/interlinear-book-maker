@@ -28,6 +28,16 @@ let `check` tell you when the text is clean.
     uv run python -m spacy download de_core_news_lg
     uv run pytest
 
+If you will commit, install the secret-scanning hook as well. It needs
+[gitleaks](https://github.com/gitleaks/gitleaks) on your PATH (on Windows:
+`winget install --id Gitleaks.Gitleaks -e`):
+
+    uv run pre-commit install
+
+Every commit is then checked by gitleaks and detect-secrets. GitHub runs the
+same checks on every push and pull request. If detect-secrets flags something
+that is not a secret, end that line with `# pragma: allowlist secret`.
+
 ## Pipeline
 
     cp "<your copy>.pdf" data/raw/
