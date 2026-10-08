@@ -94,7 +94,7 @@ invocation.
 - [ ] **Step 1: Pin the interpreter and create the environment**
 
 ```bash
-cd "C:/Users/tigot/Documents/Github/book-editor"
+cd book-editor
 echo "3.12" > .python-version
 uv venv --python 3.12
 ```
