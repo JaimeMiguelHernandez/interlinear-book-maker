@@ -60,6 +60,21 @@ BROKEN_WORDS = {
     "Ga illard": "Gaillard",
     "Baldin i": "Baldini",
     "Mar-guerite": "Marguerite",
+    # It also glues 13, in 14 places: a lost space, or pdftotext dropping the hyphen of a
+    # compound that wraps at that hyphen. Found by a lowercase-then-capital scan.
+    "dieFrau": "die Frau",
+    "einerkleinen": "einer kleinen",
+    "SaintGermain": "Saint-Germain",
+    "SaintAntoine": "Saint-Antoine",
+    "SaintEustache": "Saint-Eustache",
+    "HotelDieu": "Hotel-Dieu",
+    "JeanBaptiste": "Jean-Baptiste",
+    "TailladeEspinasse": "Taillade-Espinasse",
+    "LippeDetmold": "Lippe-Detmold",
+    "HolunderStrauchs": "Holunder-Strauchs",
+    "SalzigSandiges": "Salzig-Sandiges",
+    "ErhabenSchwitzige": "Erhaben-Schwitzige",
+    "VitalluftventilationsAapparates": "Vitalluftventilations-Apparates",
 }
 _BROKEN_WORD = re.compile(r"\b(?:" + "|".join(map(re.escape, BROKEN_WORDS)) + r")\b")
 

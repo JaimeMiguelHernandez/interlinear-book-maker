@@ -47,6 +47,13 @@ def test_repairs_words_the_text_layer_breaks():
     )
 
 
+def test_repairs_words_the_text_layer_glues():
+    """13 words lose a space or a compound hyphen ("dieFrau", "SaintGermain")."""
+    assert normalize("Da kam dieFrau aus SaintGermain mit dem VitalluftventilationsAapparates.").text == (
+        "Da kam die Frau aus Saint-Germain mit dem Vitalluftventilations-Apparates."
+    )
+
+
 def test_ch_rule_keeps_the_space_of_a_page_join():
     """"Alambic" ends a page before "hervor"; that space is a real word break."""
     assert normalize("aus dem Alambic\nhervor.").text == "aus dem Alambic hervor."
