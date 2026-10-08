@@ -1,4 +1,4 @@
-# book-editor
+# interlinear-book-maker
 
 `interlinear-book-maker` turns a German book into an interlinear study edition.
 Each German sentence sits next to its translation, as an EPUB, a PDF, Markdown
