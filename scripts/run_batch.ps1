@@ -1,5 +1,5 @@
 $ErrorActionPreference = "Stop"
-Set-Location "C:\Users\tigot\Documents\Github\book-editor"
+Set-Location (Split-Path $PSScriptRoot -Parent)
 
 . .\.env.ps1
 
