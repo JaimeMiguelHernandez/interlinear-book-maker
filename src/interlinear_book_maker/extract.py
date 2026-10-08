@@ -10,6 +10,8 @@ compound that happens to wrap at its own hyphen, so a compound split at exactly
 that point is glued into one word. Distinguishing the two needs a dictionary,
 which is out of scope for a regex normalizer. hyphen_joins counts every such join
 so `interlinear-book-maker check` can surface the number for a human to spot-check.
+One case is decidable: a line-wrap hyphen never precedes a capital, so a hyphen
+followed by one ("Aus-Der-" / "Reihe-Tänzer") is kept and not counted.
 """
 
 from __future__ import annotations
@@ -124,7 +126,9 @@ def normalize(raw: str) -> Normalized:
             continue
 
         if lines and _is_continuation(lines[-1], stripped):
-            if lines[-1].endswith("-"):
+            if lines[-1].endswith("-") and stripped[0].isupper():
+                lines[-1] = lines[-1] + stripped      # a compound's own hyphen
+            elif lines[-1].endswith("-"):
                 lines[-1] = lines[-1][:-1] + stripped
                 result.hyphen_joins += 1
             else:
