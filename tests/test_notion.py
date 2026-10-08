@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from parfum.model import Satz, Sektion
-from parfum.notion import (
+from interlinear_book_maker.model import Satz, Sektion
+from interlinear_book_maker.notion import (
     NotionClient,
     NotionError,
     build_header_row,
@@ -161,3 +161,9 @@ def test_client_update_page_table():
     assert calls[1][0] == "DELETE" and calls[1][1].endswith("/blocks/block-tbl-1")
     assert calls[2][0] == "PATCH" and calls[2][1].endswith("/blocks/page-999/children")
 
+
+
+def test_header_row_uses_the_native_language_name():
+    cells = build_header_row("fr")["table_row"]["cells"]
+    assert cells[1][0]["text"]["content"] == "Français"
+    assert build_header_row()["table_row"]["cells"][1][0]["text"]["content"] == "English"

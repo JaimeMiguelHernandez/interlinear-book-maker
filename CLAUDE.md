@@ -7,9 +7,9 @@ Guidance for Claude Code when working in the `book-editor` repository.
 `book-editor` produces an interlinear German→English study edition of Patrick Süskind's *Das Parfum* for personal language study.
 - **Language / Environment**: Python 3.12 managed with `uv`.
 - **Core Pipeline**:
-  - `uv run parfum extract`  -> Extracts text from PDF to `data/interim/raw.txt` & `pagemap.json`.
-  - `uv run parfum segment`  -> Segments text into `data/interim/book.json` via spaCy (`de_core_news_lg`).
-  - `uv run parfum check`    -> Validates the concatenation invariant.
+  - `uv run interlinear-book-maker extract`  -> Extracts text from PDF to `data/interim/raw.txt` & `pagemap.json`.
+  - `uv run interlinear-book-maker segment`  -> Segments text into `data/interim/book.json` via spaCy (`de_core_news_lg`).
+  - `uv run interlinear-book-maker check`    -> Validates the concatenation invariant.
   - `uv run pytest`          -> Runs the test suite.
 - **Core Invariant (Concatenation Invariant)**: Reconstructing text from `book.json` MUST produce `raw.txt` byte-for-byte. Never break this invariant.
 - **Copyright & Privacy**: *Das Parfum* is in copyright. Data under `data/` and PDFs are strictly gitignored. Book text flows disk-to-disk through files; never dump full raw book text into chat.

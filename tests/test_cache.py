@@ -1,6 +1,6 @@
-from parfum.cache import Cache, key
-from parfum.claude_cli import MODEL, Translation
-from parfum.glossary import Entry
+from interlinear_book_maker.cache import Cache, key
+from interlinear_book_maker.claude_cli import MODEL, Translation
+from interlinear_book_maker.glossary import Entry
 
 ENTRIES = [Entry("Gestank", "stench", "w: stench"),
            Entry("Gerber", "tanner", "w: tanner")]

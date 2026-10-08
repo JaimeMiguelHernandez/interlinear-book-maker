@@ -1,7 +1,7 @@
-from parfum.candidates import Candidate, count_lemmas, monosemous, recurring
-from parfum.model import Book, Kapitel, Satz, Sektion, Teil
-from parfum.sentences import load_nlp
-from parfum.wiktextract import Sense
+from interlinear_book_maker.candidates import Candidate, count_lemmas, monosemous, recurring
+from interlinear_book_maker.model import Book, Kapitel, Satz, Sektion, Teil
+from interlinear_book_maker.sentences import load_nlp
+from interlinear_book_maker.wiktextract import Sense
 
 
 def _book(*sentences):

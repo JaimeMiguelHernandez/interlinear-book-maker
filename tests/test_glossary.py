@@ -1,6 +1,6 @@
 import pytest
 
-from parfum.glossary import Entry, dump_tsv, entries_for, parse_tsv
+from interlinear_book_maker.glossary import Entry, dump_tsv, entries_for, parse_tsv
 
 SAMPLE = """# source\ttarget\tevidence
 Gestank\tstench\twiktionary: Gestank (n) "stench, stink"

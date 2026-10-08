@@ -1,10 +1,11 @@
 import json
+import zipfile
 from pathlib import Path
 
 import pytest
 
-from parfum import cli, paths
-from parfum.extract import normalize
+from interlinear_book_maker import cli, paths
+from interlinear_book_maker.extract import normalize
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mini_book.txt"
 
@@ -70,8 +71,8 @@ class _FakeNLP:
 
 
 def test_senses_builds_the_subset_for_recurring_lemmas_only(tmp_path, monkeypatch, capsys):
-    from parfum import sentences
-    from parfum.wiktextract import Sense, load_subset
+    from interlinear_book_maker import sentences
+    from interlinear_book_maker.wiktextract import Sense, load_subset
 
     monkeypatch.setattr(paths, "INTERIM", tmp_path)
     monkeypatch.setattr(paths, "REFERENCE", tmp_path)
@@ -95,7 +96,7 @@ def test_senses_builds_the_subset_for_recurring_lemmas_only(tmp_path, monkeypatc
 
 
 def test_glossary_candidates_writes_a_tsv_and_prints_counts_only(tmp_path, monkeypatch, capsys):
-    from parfum.wiktextract import Sense, save_subset
+    from interlinear_book_maker.wiktextract import Sense, save_subset
 
     monkeypatch.setattr(paths, "INTERIM", tmp_path)
     monkeypatch.setattr(paths, "REFERENCE", tmp_path)
@@ -160,11 +161,11 @@ def test_client_runs_the_resolved_claude_executable(monkeypatch):
 
 
 def test_glossary_validate_rejects_an_entry_without_a_matching_sense(tmp_path, monkeypatch):
-    from parfum.wiktextract import Sense, save_subset
+    from interlinear_book_maker.wiktextract import Sense, save_subset
 
     monkeypatch.setattr(paths, "CONFIG", tmp_path)
     monkeypatch.setattr(paths, "REFERENCE", tmp_path)
-    (tmp_path / "glossary.tsv").write_text(
+    (tmp_path / "glossary.en.tsv").write_text(
         "# source\ttarget\tevidence\nZug\ttrain\tw: train\n", encoding="utf-8")
     save_subset({"Zug": [Sense("noun", "train"), Sense("noun", "draught")]},
                 tmp_path / "senses.json")
@@ -173,9 +174,9 @@ def test_glossary_validate_rejects_an_entry_without_a_matching_sense(tmp_path, m
 
 def test_translate_force_dry_run_ignores_the_cache_in_its_pending_count(
         tmp_path, monkeypatch, capsys):
-    from parfum.cache import Cache
-    from parfum.cache import key as cache_key
-    from parfum.claude_cli import MODEL, Translation
+    from interlinear_book_maker.cache import Cache
+    from interlinear_book_maker.cache import key as cache_key
+    from interlinear_book_maker.claude_cli import MODEL, Translation
 
     monkeypatch.setattr(paths, "INTERIM", tmp_path)
     monkeypatch.setattr(paths, "TRANSLATION_CACHE", tmp_path / "cache")
@@ -188,7 +189,7 @@ def test_translate_force_dry_run_ignores_the_cache_in_its_pending_count(
     (tmp_path / "book.json").write_text(json.dumps(book), encoding="utf-8")
 
     # Pre-populate the cache so the sentence is already translated. No
-    # config/glossary.tsv and empty instructions above match what cli._translate
+    # glossary.en.tsv and empty fallback instructions above match what cli._translate
     # will load, so this is the exact key it will look up.
     cache = Cache(tmp_path / "cache")
     cache.put(cache_key("Der Gestank.", [], MODEL, []),
@@ -441,18 +442,104 @@ def _seed_export(tmp_path, monkeypatch, english):
 def test_export_writes_the_book_file(tmp_path, monkeypatch, capsys, fmt):
     _seed_export(tmp_path, monkeypatch, "The stench.")
     assert cli.main(["export", "--format", fmt]) == 0
-    assert (tmp_path / "output" / f"parfum.{fmt}").is_file()
-    assert f"parfum.{fmt}" in capsys.readouterr().out
+    assert (tmp_path / "output" / f"edition.{fmt}").is_file()
+    assert f"edition.{fmt}" in capsys.readouterr().out
 
 
 def test_export_refuses_translation_that_fails_verify(tmp_path, monkeypatch, capsys):
     _seed_export(tmp_path, monkeypatch, "")
     assert cli.main(["export", "--format", "pdf"]) == 1
     assert "fails verify" in capsys.readouterr().err
-    assert not (tmp_path / "output" / "parfum.pdf").exists()
+    assert not (tmp_path / "output" / "edition.pdf").exists()
 
 
 def test_export_missing_translated_file(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(paths, "INTERIM", tmp_path)
     assert cli.main(["export", "--format", "epub"]) == 1
     assert "does not exist" in capsys.readouterr().err
+
+
+def test_language_defaults_to_english(capsys):
+    assert cli.main(["language"]) == 0
+    assert "target language: en (English / English)" in capsys.readouterr().out
+
+
+def test_language_switch_removes_translated_json(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "INTERIM", tmp_path)
+    translated = tmp_path / "translated.json"
+    translated.write_text("{}", encoding="utf-8")
+
+    assert cli.main(["language", "es"]) == 0
+    assert not translated.exists()
+    out = capsys.readouterr().out
+    assert "target language: es (Spanish / Español)" in out
+    assert "translated.json removed" in out
+
+    translated.write_text("{}", encoding="utf-8")
+    assert cli.main(["language", "es"]) == 0
+    assert translated.exists()
+
+
+def test_language_rejects_an_unknown_code(capsys):
+    assert cli.main(["language", "xx"]) == 1
+    assert "supported: en, es, fr, it, pt, nl, pl, sv" in capsys.readouterr().err
+    assert not paths.SETTINGS.exists()
+
+
+def test_an_unknown_stored_language_stops_the_command():
+    paths.SETTINGS.write_text('{"target_language": "xx"}', encoding="utf-8")
+    with pytest.raises(SystemExit, match="unknown language 'xx'"):
+        cli._target_language()
+
+
+def test_client_translates_into_the_chosen_language(monkeypatch):
+    from interlinear_book_maker.languages import set_target
+
+    monkeypatch.setattr("shutil.which", lambda _name: r"C:\bin\claude.CMD")
+    assert cli._client().target == "English"
+    set_target("fr")
+    assert cli._client().target == "French"
+
+
+def _seed_config(tmp_path, monkeypatch):
+    monkeypatch.setattr(paths, "CONFIG", tmp_path)
+    (tmp_path / "translation_instructions.en.json").write_text(
+        '["Into English."]', encoding="utf-8")
+    (tmp_path / "translation_instructions.json").write_text(
+        '["Into {language}."]', encoding="utf-8")
+    (tmp_path / "glossary.en.tsv").write_text(
+        "# source\ttarget\tevidence\nDuft\tscent\tw: scent\n", encoding="utf-8")
+
+
+def test_english_reads_its_own_instructions_and_glossary(tmp_path, monkeypatch):
+    _seed_config(tmp_path, monkeypatch)
+    assert cli._load_instructions("en") == ["Into English."]
+    assert [e.target for e in cli._load_glossary("en")] == ["scent"]
+
+
+def test_other_languages_fill_the_template_and_have_no_glossary(tmp_path, monkeypatch):
+    _seed_config(tmp_path, monkeypatch)
+    assert cli._load_instructions("es") == ["Into Spanish."]
+    assert cli._load_glossary("es") == []
+
+
+def test_shipped_template_names_the_language_first():
+    """Different languages must give different cache keys; the instructions carry that."""
+    lines = json.loads((paths.CONFIG / "translation_instructions.json").read_text(encoding="utf-8"))
+    assert "{language}" in lines[0]
+
+
+def test_export_uses_the_chosen_language(tmp_path, monkeypatch):
+    _seed_export(tmp_path, monkeypatch, "El hedor.")
+    paths.SETTINGS.write_text('{"target_language": "es"}', encoding="utf-8")
+    assert cli.main(["export", "--format", "epub"]) == 0
+    with zipfile.ZipFile(tmp_path / "output" / "edition.epub") as z:
+        assert 'lang="es"' in z.read("OEBPS/T1.K01.xhtml").decode("utf-8")
+
+
+def test_render_uses_the_chosen_language_header(tmp_path, monkeypatch):
+    _seed_export(tmp_path, monkeypatch, "El hedor.")
+    paths.SETTINGS.write_text('{"target_language": "es"}', encoding="utf-8")
+    assert cli.main(["render"]) == 0
+    md = (tmp_path / "output" / "T1" / "T1.K01.S01.md").read_text(encoding="utf-8")
+    assert "| Deutsch | Español |" in md

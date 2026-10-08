@@ -1,9 +1,9 @@
-from parfum import paths
+from interlinear_book_maker import paths
 
 
 def test_root_resolves_to_the_repository_root():
     assert (paths.ROOT / "pyproject.toml").is_file()
-    assert (paths.ROOT / "src" / "parfum" / "paths.py").is_file()
+    assert (paths.ROOT / "src" / "interlinear_book_maker" / "paths.py").is_file()
 
 
 def test_data_dirs_live_under_root():

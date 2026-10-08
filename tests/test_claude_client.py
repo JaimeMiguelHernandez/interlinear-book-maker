@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from parfum.claude_cli import (EFFORT, MODEL, RETRY_WAIT_SECONDS, Client,
+from interlinear_book_maker.claude_cli import (EFFORT, MODEL, RETRY_WAIT_SECONDS, Client,
                                TransportError)
 
 USAGE = {"input_tokens": 2, "cache_creation_input_tokens": 1180,
@@ -24,7 +24,7 @@ def _error(result, status=None):
                           "result": result})
 
 
-ONE = [{"id": 1, "english": "The stench."}]
+ONE = [{"id": 1, "translation": "The stench."}]
 
 
 class FakeRun:

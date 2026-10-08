@@ -43,7 +43,7 @@ def save_state(state: dict) -> None:
 
 def run_stage(stage: str, scope: str, env: dict) -> subprocess.CompletedProcess:
     return subprocess.run(
-        ["uv", "run", "parfum", stage, "--scope", scope],
+        ["uv", "run", "interlinear-book-maker", stage, "--scope", scope],
         capture_output=True, text=True, env=env, cwd=str(PROJECT_ROOT), timeout=3600,
     )
 

@@ -9,8 +9,8 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from parfum.model import Book, Sektion
-from parfum.notion import NotionClient, build_table_block
+from interlinear_book_maker.model import Book, Sektion
+from interlinear_book_maker.notion import NotionClient, build_table_block
 
 
 def compute_sektion_hash(sektion: Sektion, translated: dict[str, str]) -> str:
@@ -80,6 +80,7 @@ def publish(
     force: bool = False,
     dry_run: bool = False,
     ledger_path: Path | None = None,
+    language: str = "en",
 ) -> PublishSummary:
     """Publish Sektion tables to Notion, tracking published pages in the ledger."""
     if ledger_path is None:
@@ -101,7 +102,7 @@ def publish(
                     summary.skipped += 1
                     continue
 
-                table_block = build_table_block(sektion, translated)
+                table_block = build_table_block(sektion, translated, language)
 
                 if entry is not None:
                     page_id = entry["page_id"]

@@ -4,17 +4,17 @@ from pathlib import Path
 
 import pytest
 
-from parfum.cache import Cache, key
-from parfum.extract import normalize
-from parfum.claude_cli import MODEL, Translation
-from parfum.glossary import Entry
-from parfum.model import Book, Kapitel, Satz, Sektion, Teil
-from parfum.notion import NotionClient
-from parfum.publish import PublishedLedger, publish
-from parfum.render import render_book
-from parfum.segment import build_book, pack
-from parfum.translate import run, write_translated
-from parfum.verify import verify, write_flags
+from interlinear_book_maker.cache import Cache, key
+from interlinear_book_maker.extract import normalize
+from interlinear_book_maker.claude_cli import MODEL, Translation
+from interlinear_book_maker.glossary import Entry
+from interlinear_book_maker.model import Book, Kapitel, Satz, Sektion, Teil
+from interlinear_book_maker.notion import NotionClient
+from interlinear_book_maker.publish import PublishedLedger, publish
+from interlinear_book_maker.render import render_book
+from interlinear_book_maker.segment import build_book, pack
+from interlinear_book_maker.translate import run, write_translated
+from interlinear_book_maker.verify import verify, write_flags
 
 ENTRIES = [Entry("Gestank", "stench", "w: stench")]
 INSTR = ["Keep register formal."]
@@ -177,8 +177,8 @@ def test_full_pipeline_stages_1_to_7_e2e(tmp_path: Path):
     assert published_calls == 0
 
 
-@pytest.mark.skipif(not (os.environ.get("PARFUM_LIVE") and os.environ.get("NOTION_API_KEY") and os.environ.get("NOTION_PARENT_ID")),
-                    reason="opt-in: set PARFUM_LIVE=1, NOTION_API_KEY, and NOTION_PARENT_ID")
+@pytest.mark.skipif(not (os.environ.get("INTERLINEAR_LIVE") and os.environ.get("NOTION_API_KEY") and os.environ.get("NOTION_PARENT_ID")),
+                    reason="opt-in: set INTERLINEAR_LIVE=1, NOTION_API_KEY, and NOTION_PARENT_ID")
 def test_live_smoke_notion_verifies_parent_page():
     import httpx
 

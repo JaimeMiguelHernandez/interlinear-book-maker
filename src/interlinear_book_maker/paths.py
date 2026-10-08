@@ -13,6 +13,7 @@ REFERENCE = DATA / "reference"
 INTERIM = DATA / "interim"
 CACHE = DATA / "cache"
 OUTPUT = DATA / "output"
+SETTINGS = DATA / "settings.json"
 TRANSLATION_CACHE = CACHE / "translation"
 
 

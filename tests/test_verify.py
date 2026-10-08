@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from parfum.model import Book, Kapitel, Satz, Sektion, Teil
-from parfum.verify import DefectType, VerificationResult, verify, write_flags
+from interlinear_book_maker.model import Book, Kapitel, Satz, Sektion, Teil
+from interlinear_book_maker.verify import DefectType, VerificationResult, verify, write_flags
 
 
 def _fixture_book() -> Book:

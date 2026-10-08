@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from parfum.extract import normalize
-from parfum.structure import (
+from interlinear_book_maker.extract import normalize
+from interlinear_book_maker.structure import (
     MAX_FRONT_MATTER_LINES,
     StructureError,
     detect,

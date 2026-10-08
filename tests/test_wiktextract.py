@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from parfum.wiktextract import Sense, build_subset, load_subset, save_subset
+from interlinear_book_maker.wiktextract import Sense, build_subset, load_subset, save_subset
 
 FIXTURE = Path(__file__).parent / "fixtures" / "wiktextract_mini.jsonl"
 

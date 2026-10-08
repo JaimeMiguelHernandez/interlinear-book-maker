@@ -1,5 +1,5 @@
 ---
-description: Run the parfum concatenation invariant check and full test suite
+description: Run the concatenation invariant check and full test suite
 ---
 
 # Invariant & Test Check Command
@@ -10,7 +10,7 @@ Run the full verification battery for `book-editor`:
 
 1. Run the concatenation invariant check:
    ```bash
-   uv run parfum check
+   uv run interlinear-book-maker check
    ```
 
 2. Run the pytest test suite:

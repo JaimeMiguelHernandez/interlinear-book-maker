@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from parfum.model import Book, Kapitel, Satz, Sektion, Teil
-from parfum.render import (
+from interlinear_book_maker.model import Book, Kapitel, Satz, Sektion, Teil
+from interlinear_book_maker.render import (
     Manifest,
     RenderStatus,
     escape_cell,
@@ -135,3 +135,8 @@ def test_render_book_clobber_protection_on_hand_edited_file(tmp_path: Path):
     assert incoming.exists()
     assert "<!-- User hand note -->" not in incoming.read_text(encoding="utf-8")
 
+
+
+def test_header_uses_the_native_language_name():
+    md = render_sektion_markdown(_fixture_sektion(), {}, "es")
+    assert "| Deutsch | Español |" in md

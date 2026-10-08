@@ -10,7 +10,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-from parfum.model import Book, Sektion
+from interlinear_book_maker.languages import LANGUAGES
+from interlinear_book_maker.model import Book, Sektion
 
 
 class RenderStatus(Enum):
@@ -25,11 +26,12 @@ def escape_cell(text: str) -> str:
     return cleaned.replace("|", "\\|")
 
 
-def render_sektion_markdown(sektion: Sektion, translated: dict[str, str]) -> str:
+def render_sektion_markdown(sektion: Sektion, translated: dict[str, str],
+                            language: str = "en") -> str:
     """Format a Sektion into a two-column markdown table."""
     lines = [
         f"# {sektion.id}\n",
-        "| Deutsch | English |",
+        f"| Deutsch | {LANGUAGES[language][1]} |",
         "|---|---|",
     ]
     for satz in sektion.saetze:
@@ -93,6 +95,7 @@ def render_book(
     output_dir: Path,
     scope: str | None = None,
     force: bool = False,
+    language: str = "en",
 ) -> RenderSummary:
     """Render Sektionen of the book into markdown files under output_dir."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -109,7 +112,7 @@ def render_book(
                 summary.total += 1
                 rel_path = f"{teil.id}/{sektion.id}.md"
                 target_path = output_dir / teil.id / f"{sektion.id}.md"
-                md_content = render_sektion_markdown(sektion, translated)
+                md_content = render_sektion_markdown(sektion, translated, language)
                 new_hash = sha256(md_content)
 
                 if target_path.is_file():

@@ -9,7 +9,7 @@ next one and deletes the hyphen. It cannot tell a line-wrap hyphen from a German
 compound that happens to wrap at its own hyphen, so a compound split at exactly
 that point is glued into one word. Distinguishing the two needs a dictionary,
 which is out of scope for a regex normalizer. hyphen_joins counts every such join
-so `parfum check` can surface the number for a human to spot-check.
+so `interlinear-book-maker check` can surface the number for a human to spot-check.
 """
 
 from __future__ import annotations

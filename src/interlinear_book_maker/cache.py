@@ -6,8 +6,8 @@ import hashlib
 import json
 from pathlib import Path
 
-from parfum.claude_cli import Translation
-from parfum.glossary import Entry, entries_for
+from interlinear_book_maker.claude_cli import Translation
+from interlinear_book_maker.glossary import Entry, entries_for
 
 
 def key(sentence: str, entries: list[Entry], model: str,

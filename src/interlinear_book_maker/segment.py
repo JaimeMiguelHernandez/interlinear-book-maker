@@ -8,9 +8,9 @@ longer than the ceiling becomes an oversized Sektion of its own.
 
 from __future__ import annotations
 
-from parfum.model import Book, Kapitel, Satz, Sektion, Teil, satz_id
-from parfum.sentences import split_sentences
-from parfum.structure import detect
+from interlinear_book_maker.model import Book, Kapitel, Satz, Sektion, Teil, satz_id
+from interlinear_book_maker.sentences import split_sentences
+from interlinear_book_maker.structure import detect
 
 LO = 40
 HI = 55

@@ -1,7 +1,7 @@
-from parfum.ab import Divergence, compare, report
-from parfum.claude_cli import MODEL, Translation
-from parfum.glossary import Entry
-from parfum.model import Book, Kapitel, Satz, Sektion, Teil
+from interlinear_book_maker.ab import Divergence, compare, report
+from interlinear_book_maker.claude_cli import MODEL, Translation
+from interlinear_book_maker.glossary import Entry
+from interlinear_book_maker.model import Book, Kapitel, Satz, Sektion, Teil
 
 ENTRIES = [Entry("Gestank", "stench", "w: stench")]
 

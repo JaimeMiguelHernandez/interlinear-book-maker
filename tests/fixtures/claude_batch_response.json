@@ -84,16 +84,16 @@
   "num_turns": 2,
   "subtype": "success",
   "api_error_status": null,
-  "result": "{\"rows\":[{\"id\":1,\"english\":\"The tanner sleeps above the courtyard.\"},{\"id\":2,\"english\":\"It smells of decay and oil.\"}]}",
+  "result": "{\"rows\":[{\"id\":1,\"translation\":\"The tanner sleeps above the courtyard.\"},{\"id\":2,\"translation\":\"It smells of decay and oil.\"}]}",
   "structured_output": {
     "rows": [
       {
         "id": 1,
-        "english": "The tanner sleeps above the courtyard."
+        "translation": "The tanner sleeps above the courtyard."
       },
       {
         "id": 2,
-        "english": "It smells of decay and oil."
+        "translation": "It smells of decay and oil."
       }
     ]
   },

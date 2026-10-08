@@ -1,6 +1,6 @@
 import pytest
 
-from parfum.sentences import regroup, split_sentences
+from interlinear_book_maker.sentences import regroup, split_sentences
 
 
 @pytest.mark.parametrize("paragraph,expected", [
