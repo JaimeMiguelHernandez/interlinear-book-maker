@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 
 from interlinear_book_maker import paths
@@ -88,6 +89,10 @@ def _check(_args) -> int:
     letterless = sum(1 for s in book.iter_saetze() if not any(c.isalpha() for c in s.text))
     if letterless:
         problems.append(f"{letterless} sentence(s) without letters")
+    # A lowercase letter before a capital inside a word: a lost space or hyphen.
+    glued = len(re.findall(r"[a-zäöüß][A-ZÄÖÜ]", text))
+    if glued:
+        problems.append(f"{glued} glued word(s); see BROKEN_WORDS in extract.py")
 
     print(f"teile: {len(book.teile)}  kapitel: {len(chapters)}  "
           f"sektionen: {len(sizes)}  sentences: {sum(sizes)}")

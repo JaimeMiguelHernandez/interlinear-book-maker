@@ -35,6 +35,13 @@ def test_rejoins_line_end_hyphen_without_a_space():
     assert result.hyphen_joins == 1
 
 
+def test_keeps_a_page_break_hyphen_before_a_capital():
+    """A line-wrap hyphen never precedes a capital, so this one is a compound's."""
+    result = normalize("diesen Aus-Der-\nReihe-Tänzer.")
+    assert result.text == "diesen Aus-Der-Reihe-Tänzer."
+    assert result.hyphen_joins == 0
+
+
 def test_closes_stray_space_inside_ch():
     """The PDF's text layer splits "ch" with a space in 21 words ("nic ht")."""
     assert normalize("Er war es nic ht, sagte ic h.").text == "Er war es nicht, sagte ich."
@@ -44,6 +51,13 @@ def test_repairs_words_the_text_layer_breaks():
     """17 words come out scrambled or split around a narrow glyph ("la ngsam")."""
     assert normalize("Und ni nerhalb ging er la ngsam zu Mar-guerite.").text == (
         "Und innerhalb ging er langsam zu Marguerite."
+    )
+
+
+def test_repairs_words_the_text_layer_glues():
+    """13 words lose a space or a compound hyphen ("dieFrau", "SaintGermain")."""
+    assert normalize("Da kam dieFrau aus SaintGermain mit dem VitalluftventilationsAapparates.").text == (
+        "Da kam die Frau aus Saint-Germain mit dem Vitalluftventilations-Apparates."
     )
 
 

@@ -10,6 +10,8 @@ compound that happens to wrap at its own hyphen, so a compound split at exactly
 that point is glued into one word. Distinguishing the two needs a dictionary,
 which is out of scope for a regex normalizer. hyphen_joins counts every such join
 so `interlinear-book-maker check` can surface the number for a human to spot-check.
+One case is decidable: a line-wrap hyphen never precedes a capital, so a hyphen
+followed by one ("Aus-Der-" / "Reihe-Tänzer") is kept and not counted.
 """
 
 from __future__ import annotations
@@ -60,6 +62,21 @@ BROKEN_WORDS = {
     "Ga illard": "Gaillard",
     "Baldin i": "Baldini",
     "Mar-guerite": "Marguerite",
+    # It also glues 13, in 14 places: a lost space, or pdftotext dropping the hyphen of a
+    # compound that wraps at that hyphen. Found by a lowercase-then-capital scan.
+    "dieFrau": "die Frau",
+    "einerkleinen": "einer kleinen",
+    "SaintGermain": "Saint-Germain",
+    "SaintAntoine": "Saint-Antoine",
+    "SaintEustache": "Saint-Eustache",
+    "HotelDieu": "Hotel-Dieu",
+    "JeanBaptiste": "Jean-Baptiste",
+    "TailladeEspinasse": "Taillade-Espinasse",
+    "LippeDetmold": "Lippe-Detmold",
+    "HolunderStrauchs": "Holunder-Strauchs",
+    "SalzigSandiges": "Salzig-Sandiges",
+    "ErhabenSchwitzige": "Erhaben-Schwitzige",
+    "VitalluftventilationsAapparates": "Vitalluftventilations-Apparates",
 }
 _BROKEN_WORD = re.compile(r"\b(?:" + "|".join(map(re.escape, BROKEN_WORDS)) + r")\b")
 
@@ -109,7 +126,9 @@ def normalize(raw: str) -> Normalized:
             continue
 
         if lines and _is_continuation(lines[-1], stripped):
-            if lines[-1].endswith("-"):
+            if lines[-1].endswith("-") and stripped[0].isupper():
+                lines[-1] = lines[-1] + stripped      # a compound's own hyphen
+            elif lines[-1].endswith("-"):
                 lines[-1] = lines[-1][:-1] + stripped
                 result.hyphen_joins += 1
             else:

@@ -45,6 +45,16 @@ def test_check_fails_on_a_sentence_without_letters(tmp_path, monkeypatch, capsys
     assert "1 sentence(s) without letters" in capsys.readouterr().err
 
 
+def test_check_fails_on_a_glued_word(tmp_path, monkeypatch, capsys):
+    seed(tmp_path, monkeypatch)
+    raw = tmp_path / "raw.txt"
+    raw.write_text(raw.read_text(encoding="utf-8").replace("Der Hund", "DerHund", 1),
+                   encoding="utf-8")
+    cli.main(["segment"])
+    assert cli.main(["check"]) == 1
+    assert "1 glued word(s)" in capsys.readouterr().err
+
+
 def test_check_never_prints_book_text(tmp_path, monkeypatch, capsys):
     seed(tmp_path, monkeypatch)
     cli.main(["segment"])
